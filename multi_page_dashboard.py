@@ -1020,23 +1020,28 @@ def display_page(pathname):
     else:
         return create_job_seeker_page()
 
-
 # ============================================================================
 # RUN APP
 # ============================================================================
 
+# For production deployment (Render, Heroku, etc.)
+server = app.server
+
 if __name__ == '__main__':
+    import os
+    port = int(os.environ.get('PORT', 8050))
+    
     print("\n" + "="*70)
-    print("🚀 Rwanda Jobs Multi-Page Portal - ENHANCED")
+    print("🚀 Rwanda Jobs Multi-Page Portal")
     print("="*70)
     print(f"📊 Total Jobs Loaded: {len(df):,}")
     print(f"📍 Sources: {len(df['source'].unique())}")
     print(f"💼 Sectors: {len(df['sector'].dropna().unique())}")
     print("\n📄 Available Pages:")
-    print("   1. Job Search Portal      → http://localhost:8050/")
-    print("   2. Market Insights        → http://localhost:8050/insights")
-    print("   3. Historical Jobs        → http://localhost:8050/historical")
-    print("\n🌐 Opening dashboard at: http://localhost:8050")
+    print("   1. Job Search Portal      → /")
+    print("   2. Market Insights        → /insights")
+    print("   3. Historical Jobs        → /historical")
+    print(f"\n🌐 Running on port: {port}")
     print("="*70 + "\n")
     
-    app.run(debug=True, port=8050)
+    app.run(debug=False, host='0.0.0.0', port=port)
