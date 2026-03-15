@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: rwanda-jobs-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements_dashboard.txt
+    startCommand: gunicorn multi_page_dashboard:server --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.0

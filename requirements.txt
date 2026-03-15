@@ -1,0 +1,24 @@
+# Core dependencies
+psycopg2-binary==2.9.9  # PostgreSQL database adapter
+python-dotenv==1.0.0     # Environment variable management
+
+# Web scraping
+requests==2.31.0         # HTTP library
+beautifulsoup4==4.12.3   # HTML parsing
+lxml==5.1.0              # XML/HTML parser
+selenium==4.16.0         # Browser automation (for complex sites)
+cloudscraper==1.2.71     # Bypass Cloudflare protection
+
+# Data processing
+pandas==2.2.0            # Data manipulation
+
+# Utilities
+python-dateutil==2.8.2   # Date parsing
+pytz==2024.1             # Timezone handling
+
+selenium
+webdriver-manager
+
+dash>=2.14.0
+dash-bootstrap-components>=1.5.0
+plotly>=5.18.0
