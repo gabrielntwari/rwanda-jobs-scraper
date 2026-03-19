@@ -19,9 +19,9 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Logging
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -33,9 +33,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Constants / lookup tables
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 RWANDA_DISTRICTS = [
     "kigali", "gasabo", "kicukiro", "nyarugenge",
@@ -48,7 +48,7 @@ RWANDA_DISTRICTS = [
 ]
 
 SECTOR_KEYWORDS = {
-    # ── Specific / unambiguous terms first ──────────────────────────────
+    # -- Specific / unambiguous terms first ------------------------------
     "Health": [
         "nurse", "doctor", "physician", "surgeon", "pharmacist", "midwife",
         "clinical", "epidemiolog", "laboratory", "radiology", "dentist",
@@ -97,7 +97,7 @@ SECTOR_KEYWORDS = {
         "msf", "humanitarian", "donor relations", "grant", "m&e officer",
         "monitoring and evaluation",
     ],
-    # ── IT last and with precise terms only ─────────────────────────────
+    # -- IT last and with precise terms only -----------------------------
     "IT": [
         "software engineer", "software developer", "web developer",
         "mobile developer", "frontend developer", "backend developer",
@@ -139,13 +139,13 @@ EDUCATION_KEYWORDS = {
 CURRENCY_SYMBOLS = {
     "RWF": ["rwf", "frw", "francs rwandais"],
     "USD": ["usd", "$", "dollars"],
-    "EUR": ["eur", "€", "euros"],
+    "EUR": ["eur", "EUR", "euros"],
 }
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Helper functions
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 def clean(text: Optional[str]) -> Optional[str]:
     if not text:
@@ -215,8 +215,8 @@ def extract_experience_years(text: str) -> str:
     if re.search(r"no\s+(prior\s+)?experience", t):
         return "0"
 
-    # Range: "3 to 5 years" / "3 – 5 years" / "3-5 years"
-    m = re.search(r"(\d+)\s*(?:to|-|–|—)\s*(\d+)\s*(?:years?|yrs?)", t)
+    # Range: "3 to 5 years" / "3 - 5 years" / "3-5 years"
+    m = re.search(r"(\d+)\s*(?:to|-|-|-)\s*(\d+)\s*(?:years?|yrs?)", t)
     if m:
         return f"{m.group(1)}-{m.group(2)}"
 
@@ -239,7 +239,11 @@ def extract_experience_years(text: str) -> str:
 
 
 def extract_salary(text: str) -> Dict[str, Any]:
-    """Try to extract salary range and currency from free text."""
+    """
+    Extract salary range and currency from free text.
+    Only extracts numbers when a salary/currency keyword is present.
+    Caps at 9,999,999,999 to fit NUMERIC(12,2) database column.
+    """
     result = {"salary_min": None, "salary_max": None,
               "currency": "", "salary_disclosed": False}
     if not text:
@@ -252,24 +256,36 @@ def extract_salary(text: str) -> Dict[str, Any]:
             result["currency"] = currency
             break
 
-    # Look for number ranges like 500,000 – 800,000 or $1,000-$2,000
-    range_pattern = r"([\d,\.]+)\s*[-–to]+\s*([\d,\.]+)"
-    m = re.search(range_pattern, text.replace(",", ""))
+    # Only extract numbers when a salary keyword is nearby.
+    # Prevents phone numbers, job refs, years from triggering salary_disclosed.
+    salary_trigger = re.compile(
+        r"salary|remuneration|compensation|pay|stipend|rwf|usd|eur|frw",
+        re.IGNORECASE
+    )
+    if not salary_trigger.search(text):
+        return result
+
+    MAX_SALARY = 9_999_999_999  # NUMERIC(12,2) upper bound
+
+    m = re.search(r"([\d,\.]+)\s*[-to]+\s*([\d,\.]+)", text.replace(",", ""))
     if m:
         try:
-            result["salary_min"] = float(m.group(1))
-            result["salary_max"] = float(m.group(2))
-            result["salary_disclosed"] = True
+            lo = float(m.group(1))
+            hi = float(m.group(2))
+            if lo <= MAX_SALARY and hi <= MAX_SALARY:
+                result["salary_min"] = lo
+                result["salary_max"] = hi
+                result["salary_disclosed"] = True
         except ValueError:
             pass
     else:
-        # Single figure
         single = re.search(r"([\d,\.]{4,})", text.replace(",", ""))
         if single:
             try:
                 val = float(single.group(1))
-                result["salary_min"] = val
-                result["salary_disclosed"] = True
+                if val <= MAX_SALARY:
+                    result["salary_min"] = val
+                    result["salary_disclosed"] = True
             except ValueError:
                 pass
 
@@ -321,7 +337,7 @@ def infer_rwanda_eligibility(job: Dict) -> Dict:
 
     if job.get("is_remote"):
         return {"rwanda_eligible": True,
-                "eligibility_reason": "Remote job – open globally",
+                "eligibility_reason": "Remote job - open globally",
                 "confidence_score": 4}
 
     # Hard disqualifiers
@@ -342,15 +358,15 @@ def infer_rwanda_eligibility(job: Dict) -> Dict:
                     "eligibility_reason": "Explicitly mentions Rwanda location",
                     "confidence_score": 5}
 
-    # Source is jobinrwanda.com – assume eligible unless flagged
+    # Source is jobinrwanda.com - assume eligible unless flagged
     return {"rwanda_eligible": True,
             "eligibility_reason": "Listed on jobinrwanda.com",
             "confidence_score": 3}
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Scraper class
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 class JobScraper:
     BASE_URL = "https://www.jobinrwanda.com"
@@ -441,7 +457,7 @@ class JobScraper:
         return pages
 
     # ------------------------------------------------------------------
-    # Job listing page → list of job stub dicts
+    # Job listing page -> list of job stub dicts
     # ------------------------------------------------------------------
 
     def _parse_listing_page(self, page_url: str) -> List[Dict]:
@@ -497,9 +513,21 @@ class JobScraper:
                 badge = card.select_one("span.badge")
                 stub["employment_type_raw"] = clean(badge.text) if badge else None
 
-                # Location (may be present as a small text block)
-                loc_el = card.select_one("span.location, div.location, p.location")
-                stub["location_raw"] = clean(loc_el.text) if loc_el else ""
+                # Location - extracted from the meta paragraph text.
+                # The card format is: "Company | [PIN] Kigali | Published on ..."
+                # There is no dedicated .location element; location sits inline.
+                stub["location_raw"] = (
+                    extract_regex(
+                        r"[\||]\s*(?:[PIN]\s*)?([A-Za-z][A-Za-z\s,]+?)\s*[\||].*?Published",
+                        meta,
+                    )
+                    or extract_regex(
+                        # Fallback: grab the token right after a pin emoji or "Location"
+                        r"(?:[PIN]|Location[:\s]+)\s*([A-Za-z][A-Za-z\s,]+?)(?:\s*[\||]|$)",
+                        meta,
+                    )
+                    or ""
+                )
 
                 stubs.append(stub)
             except Exception as e:
@@ -527,7 +555,7 @@ class JobScraper:
                 details["sector_raw"] = extract_regex(r"Sector[:\s]+(.+)", raw)
                 details["contract_type_raw"] = extract_regex(r"Contract\s*type[:\s]+(.+)", raw)
                 details["positions_count"] = extract_regex(r"Positions[:\s]+(\d+)", raw)
-                loc_raw = extract_regex(r"Location[:\s]+(.+)", raw)
+                loc_raw = extract_regex(r"Location[:\s]*([\w][\w\s,/\-]+?)(?:\n|$)", raw)
                 if loc_raw:
                     details["location_raw"] = loc_raw
                 edu_raw = extract_regex(r"Education[:\s]+(.+)", raw)
@@ -596,7 +624,7 @@ class JobScraper:
         # Salary
         salary_info = extract_salary(detail.get("salary_snippet") or "")
 
-        # Field inference — pass title separately so it gets priority
+        # Field inference - pass title separately so it gets priority
         sector = (
             infer_field(combo, SECTOR_KEYWORDS, title=title)
             or clean(sector_raw)
@@ -618,7 +646,7 @@ class JobScraper:
             or ""
         )
 
-        # Experience years — combine all available text sources
+        # Experience years - combine all available text sources
         exp_sources = " ".join(filter(None, [
             experience_raw,
             stub.get("experience_years", ""),
@@ -687,14 +715,14 @@ class JobScraper:
     # ------------------------------------------------------------------
 
     def scrape(self) -> pd.DataFrame:
-        logger.info("═" * 50)
-        logger.info("Starting scrape – jobinrwanda.com")
+        logger.info("=" * 50)
+        logger.info("Starting scrape - jobinrwanda.com")
         t0 = time.time()
 
         # Step 1: category links
         categories = self._get_category_links()
         if not categories:
-            logger.error("No categories found – aborting")
+            logger.error("No categories found - aborting")
             return pd.DataFrame()
 
         # Step 2: collect all page URLs (with pagination)
@@ -704,7 +732,7 @@ class JobScraper:
         all_pages = list(dict.fromkeys(all_pages))  # deduplicate
         logger.info(f"Total listing pages to scrape: {len(all_pages)}")
 
-        # Step 3: scrape listing pages concurrently → collect stubs
+        # Step 3: scrape listing pages concurrently -> collect stubs
         all_stubs: List[Dict] = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
             futures = {ex.submit(self._parse_listing_page, url): url
@@ -743,8 +771,8 @@ class JobScraper:
         df = pd.DataFrame(records)
 
         elapsed = time.time() - t0
-        logger.info(f"Scrape complete in {elapsed:.1f}s – {len(df)} jobs")
-        logger.info("═" * 50)
+        logger.info(f"Scrape complete in {elapsed:.1f}s - {len(df)} jobs")
+        logger.info("=" * 50)
         return df
 
     # ------------------------------------------------------------------
@@ -753,20 +781,20 @@ class JobScraper:
 
     def save_csv(self, df: pd.DataFrame, path: str = "rwanda_jobs.csv"):
         df.to_csv(path, index=False, encoding="utf-8-sig")
-        logger.info(f"Saved CSV → {path}")
+        logger.info(f"Saved CSV -> {path}")
 
     def save_excel(self, df: pd.DataFrame, path: str = "rwanda_jobs.xlsx"):
         df.to_excel(path, index=False, engine="openpyxl")
-        logger.info(f"Saved Excel → {path}")
+        logger.info(f"Saved Excel -> {path}")
 
     def save_json(self, df: pd.DataFrame, path: str = "rwanda_jobs.json"):
         df.to_json(path, orient="records", indent=2, force_ascii=False)
-        logger.info(f"Saved JSON → {path}")
+        logger.info(f"Saved JSON -> {path}")
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Entry point
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 def main():
     scraper = JobScraper(
@@ -782,9 +810,9 @@ def main():
         return
 
     # Summary
-    print("\n" + "═" * 55)
+    print("\n" + "=" * 55)
     print("  SCRAPE SUMMARY")
-    print("═" * 55)
+    print("=" * 55)
     print(f"  Total jobs         : {len(df)}")
     print(f"  Rwanda eligible    : {df['rwanda_eligible'].sum()}")
     print(f"  Salary disclosed   : {df['salary_disclosed'].sum()}")
@@ -795,7 +823,7 @@ def main():
     print(f"\n  Employment types:")
     for etype, count in df["employment_type"].value_counts().head(5).items():
         print(f"    {etype:<20} {count}")
-    print("═" * 55)
+    print("=" * 55)
 
     scraper.save_csv(df, "rwanda_jobs.csv")
     scraper.save_excel(df, "rwanda_jobs.xlsx")

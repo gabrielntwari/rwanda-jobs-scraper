@@ -1,27 +1,27 @@
 """
 Job Scraper for mucuruzi.com - ENHANCED WITH SMART POSITION SPLITTER
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-------------------------------------------------------------------
 
-✨ NEW: Automatically splits multi-position announcements into individual jobs!
-  - "13 Positions at RSSB" → Creates 13 separate database rows
-  - "15 CIP Data Collectors at NISR" → Creates 15 separate database rows
+[NEW] NEW: Automatically splits multi-position announcements into individual jobs!
+  - "13 Positions at RSSB" -> Creates 13 separate database rows
+  - "15 CIP Data Collectors at NISR" -> Creates 15 separate database rows
   - Works with ANY format - no hardcoding!
 
 Site structure (confirmed):
-  - REST API     → 404 (disabled)
-  - /all-jobs/   → JS-rendered, unscrapable
-  - /category/job/page/N/  → paginated blog archive ✓ PRIMARY SOURCE
-  - /jobs/slug/  → individual WP Job Manager posts  ✓
-  - "Trending" roundup posts → contain raw URLs to jobs ✓ BONUS SOURCE
+  - REST API     -> 404 (disabled)
+  - /all-jobs/   -> JS-rendered, unscrapable
+  - /category/job/page/N/  -> paginated blog archive [OK] PRIMARY SOURCE
+  - /jobs/slug/  -> individual WP Job Manager posts  [OK]
+  - "Trending" roundup posts -> contain raw URLs to jobs [OK] BONUS SOURCE
 
 Strategy:
-  1. Walk /category/job/page/1/ … /page/N/ collecting all <article> links
+  1. Walk /category/job/page/1/ ... /page/N/ collecting all <article> links
   2. For each post, check if it's a "roundup" (title starts with a number +
-     "Job Positions Trending") — if so, extract embedded URLs from the body
+     "Job Positions Trending") - if so, extract embedded URLs from the body
      and add those as extra job links to fetch
   3. Fetch every individual job post and parse title + content
   4. Build the structured schema record for each
-  5. ✨ NEW: Intelligently detect and split multi-position announcements
+  5. [NEW] NEW: Intelligently detect and split multi-position announcements
 """
 
 import re
@@ -40,7 +40,7 @@ from requests.packages.urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-# ── Logging ───────────────────────────────────────────────────────────
+# -- Logging -----------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -57,10 +57,10 @@ BASE_URL = "https://mucuruzi.com"
 ARCHIVE_URLS = [
     f"{BASE_URL}/category/job/",
     f"{BASE_URL}/category/opportunities/",
-    f"{BASE_URL}/category/scholarships/",   # optional — remove if not needed
+    f"{BASE_URL}/category/scholarships/",   # optional - remove if not needed
 ]
 
-# Roundup posts (lists of job links) — mucuruzi publishes these regularly
+# Roundup posts (lists of job links) - mucuruzi publishes these regularly
 # We also discover them automatically during crawl
 KNOWN_ROUNDUP_PATTERNS = [
     r"job.positions.trending",
@@ -69,7 +69,7 @@ KNOWN_ROUNDUP_PATTERNS = [
 ]
 
 
-# ── Lookup tables ─────────────────────────────────────────────────────
+# -- Lookup tables -----------------------------------------------------
 
 RWANDA_DISTRICTS = [
     "kigali", "gasabo", "kicukiro", "nyarugenge",
@@ -176,7 +176,7 @@ CURRENCY_SYMBOLS = {
 }
 
 
-# ── Pure helpers ──────────────────────────────────────────────────────
+# -- Pure helpers ------------------------------------------------------
 
 def clean(text: Optional[str]) -> Optional[str]:
     if not text:
@@ -217,7 +217,7 @@ def extract_experience_years(text: str) -> str:
     t = text.lower()
     if re.search(r"no\s+(prior\s+)?experience", t):
         return "0"
-    m = re.search(r"(\d+)\s*(?:to|-|–|—)\s*(\d+)\s*(?:years?|yrs?)", t)
+    m = re.search(r"(\d+)\s*(?:to|-|-|-)\s*(\d+)\s*(?:years?|yrs?)", t)
     if m:
         return f"{m.group(1)}-{m.group(2)}"
     m = re.search(r"(\d+)\s*\+\s*(?:years?|yrs?)", t)
@@ -233,23 +233,56 @@ def extract_experience_years(text: str) -> str:
 
 
 def extract_salary(text: str) -> Dict[str, Any]:
+    """
+    Extract salary range and currency from free text.
+    Only extracts numbers when a salary/currency keyword is present.
+    Caps at 9,999,999,999 to fit NUMERIC(12,2) database column.
+    """
     result = {"salary_min": None, "salary_max": None,
               "currency": "", "salary_disclosed": False}
     if not text:
         return result
+
+    # Detect currency
     t = text.lower()
     for currency, symbols in CURRENCY_SYMBOLS.items():
         if any(s in t for s in symbols):
             result["currency"] = currency
             break
-    m = re.search(r"(\d[\d,]*)\s*[-–to]+\s*(\d[\d,]*)", text.replace(",", ""))
+
+    # Only extract numbers when a salary keyword is nearby.
+    # Prevents phone numbers, job refs, years from triggering salary_disclosed.
+    salary_trigger = re.compile(
+        r"salary|remuneration|compensation|pay|stipend|rwf|usd|eur|frw",
+        re.IGNORECASE
+    )
+    if not salary_trigger.search(text):
+        return result
+
+    MAX_SALARY = 9_999_999_999  # NUMERIC(12,2) upper bound
+
+    m = re.search(r"([\d,\.]+)\s*[-to]+\s*([\d,\.]+)", text.replace(",", ""))
     if m:
         try:
-            result["salary_min"] = float(m.group(1))
-            result["salary_max"] = float(m.group(2))
-            result["salary_disclosed"] = True
+            lo = float(m.group(1))
+            hi = float(m.group(2))
+            if lo <= MAX_SALARY and hi <= MAX_SALARY:
+                result["salary_min"] = lo
+                result["salary_max"] = hi
+                result["salary_disclosed"] = True
         except ValueError:
             pass
+    else:
+        single = re.search(r"([\d,\.]{4,})", text.replace(",", ""))
+        if single:
+            try:
+                val = float(single.group(1))
+                if val <= MAX_SALARY:
+                    result["salary_min"] = val
+                    result["salary_disclosed"] = True
+            except ValueError:
+                pass
+
     return result
 
 
@@ -286,7 +319,7 @@ def infer_rwanda_eligibility(job: Dict) -> Dict:
 
     if job.get("is_remote"):
         return {"rwanda_eligible": True,
-                "eligibility_reason": "Remote — open globally",
+                "eligibility_reason": "Remote - open globally",
                 "confidence_score": 4}
 
     for d in ["us citizens only", "eu residents only", "authorized to work in the us"]:
@@ -430,7 +463,7 @@ def is_real_job_url(url: str) -> bool:
     return len(parts) >= 1
 
 
-# ── Smart Position Splitter ──────────────────────────────────────────
+# -- Smart Position Splitter ------------------------------------------
 
 class SmartPositionSplitter:
     """
@@ -519,9 +552,9 @@ class SmartPositionSplitter:
         return positions
     
     def _extract_bulleted(self, text: str) -> List[str]:
-        """Extract from bulleted lists: • Position, - Position"""
+        """Extract from bulleted lists: * Position, - Position"""
         positions = []
-        pattern = r'^\s*[•\-\*▪○]\s*(.+?)$'
+        pattern = r'^\s*[*\-\**o]\s*(.+?)$'
         
         for line in text.split('\n'):
             match = re.match(pattern, line.strip())
@@ -630,7 +663,7 @@ class SmartPositionSplitter:
         return True
 
 
-# ── Scraper ───────────────────────────────────────────────────────────
+# -- Scraper -----------------------------------------------------------
 
 class MucuruziScraper:
     SOURCE_NAME = "mucuruzi"
@@ -689,7 +722,7 @@ class MucuruziScraper:
             logger.warning(f"Request failed [{url}]: {e}")
             return None
 
-    # ── Step 1: Collect all post URLs ─────────────────────────────────
+    # -- Step 1: Collect all post URLs ---------------------------------
 
     def _collect_all_post_urls(self) -> Set[str]:
         """
@@ -806,7 +839,7 @@ class MucuruziScraper:
 
         return bonus_links
 
-    # ── Step 2: Parse individual job post ────────────────────────────
+    # -- Step 2: Parse individual job post ----------------------------
 
     def _parse_post(self, url: str) -> Optional[Dict]:
         soup = self._get(url)
@@ -840,7 +873,7 @@ class MucuruziScraper:
             )
             raw["description"] = clean(content_el.get_text(" ")) if content_el else ""
 
-            # Location — search for explicit label first
+            # Location - search for explicit label first
             location_raw = ""
             desc = raw["description"] or ""
             loc_m = re.search(
@@ -861,7 +894,7 @@ class MucuruziScraper:
                 location_raw = "Kigali"
             raw["location_raw"] = location_raw
 
-            # Application link — look for explicit apply anchor
+            # Application link - look for explicit apply anchor
             raw["application_link"] = ""
             if content_el:
                 for a in content_el.select("a[href]"):
@@ -877,7 +910,7 @@ class MucuruziScraper:
 
         return raw
 
-    # ── Step 3: Build structured record ──────────────────────────────
+    # -- Step 3: Build structured record ------------------------------
 
     def _build_record(self, raw: Dict) -> Dict:
         parsed      = parse_post_title(raw.get("raw_title", ""))
@@ -889,7 +922,7 @@ class MucuruziScraper:
         location_raw = raw.get("location_raw", "") or ""
         source_url  = raw.get("source_url", "")
         
-        # ✨ NEW: If no deadline in title, search in description
+        # [NEW] NEW: If no deadline in title, search in description
         if not deadline:
             deadline = extract_deadline_from_text(description)
 
@@ -949,7 +982,7 @@ class MucuruziScraper:
         record.update(infer_rwanda_eligibility(record))
         return record
 
-    # ── Main entry point ──────────────────────────────────────────────
+    # -- Main entry point ----------------------------------------------
 
     def scrape(self) -> pd.DataFrame:
         logger.info("=" * 55)
@@ -984,7 +1017,7 @@ class MucuruziScraper:
         # Step 3: build records
         records = [self._build_record(r) for r in raw_posts]
         
-        # ✨ Step 3.5: Smart position splitting (NEW!)
+        # [NEW] Step 3.5: Smart position splitting (NEW!)
         logger.info("Checking for multi-position announcements...")
         splitter = SmartPositionSplitter()
         split_records = []
@@ -1002,7 +1035,7 @@ class MucuruziScraper:
                 positions = splitter.extract_positions(description, title, company)
                 
                 if positions and len(positions) > 1:
-                    logger.info(f"  Split: '{title[:50]}...' → {len(positions)} positions")
+                    logger.info(f"  Split: '{title[:50]}...' -> {len(positions)} positions")
                     
                     # Create a record for each position
                     for pos in positions:
@@ -1050,7 +1083,7 @@ class MucuruziScraper:
         logger.info("=" * 55)
         return df
 
-    # ── Save helpers ──────────────────────────────────────────────────
+    # -- Save helpers --------------------------------------------------
 
     def save_csv(self, df: pd.DataFrame, path: str = "mucuruzi_jobs.csv"):
         df.to_csv(path, index=False, encoding="utf-8-sig")
@@ -1065,14 +1098,14 @@ class MucuruziScraper:
         logger.info(f"Saved -> {path}")
 
 
-# ── Entry point ───────────────────────────────────────────────────────
+# -- Entry point -------------------------------------------------------
 
 def main():
     scraper = MucuruziScraper(
         request_delay=0.5,        # seconds between requests
         timeout=20,
         max_workers=6,            # concurrent threads for post fetching
-        max_archive_pages=100,    # pages per category (10 posts each ≈ 1000 jobs)
+        max_archive_pages=100,    # pages per category (10 posts each ~ 1000 jobs)
     )
 
     df = scraper.scrape()

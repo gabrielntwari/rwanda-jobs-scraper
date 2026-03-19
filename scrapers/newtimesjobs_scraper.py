@@ -1,12 +1,12 @@
 """
 Job Scraper for jobs.newtimes.co.rw
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+----------------------------------------------------------
 
 WHY 403?
   The site is behind Cloudflare bot protection. It requires JavaScript
   execution to set a `cf_clearance` cookie before allowing scraping.
 
-SOLUTION — install cloudscraper (handles Cloudflare automatically):
+SOLUTION - install cloudscraper (handles Cloudflare automatically):
   pip install cloudscraper
 
   cloudscraper is a drop-in replacement for requests.Session().
@@ -20,7 +20,7 @@ Site structure (confirmed):
   Listing: /jobs/search?page=N          (jobs)
   Tenders: /jobs/search/tenders?page=N  (tenders)
   Job URL: /jobs/{id}-{slug}
-  Each card: "Title · Company | Published on DD-MM-YYYY | Deadline DD-MM-YYYY"
+  Each card: "Title * Company | Published on DD-MM-YYYY | Deadline DD-MM-YYYY"
 """
 
 import re, time, hashlib, logging, random
@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional, Any, Set
 from urllib.parse import urlparse
 
-# ── Try cloudscraper first, fall back to requests ─────────────────────
+# -- Try cloudscraper first, fall back to requests ---------------------
 try:
     import cloudscraper
     HAS_CLOUDSCRAPER = True
@@ -56,7 +56,7 @@ SEARCH_ENDPOINTS = [
     f"{BASE_URL}/jobs/search/tenders",
 ]
 
-# ── Lookup tables ─────────────────────────────────────────────────────
+# -- Lookup tables -----------------------------------------------------
 
 RWANDA_DISTRICTS = [
     "kigali","gasabo","kicukiro","nyarugenge","musanze","rubavu","rusizi",
@@ -149,7 +149,7 @@ BROWSER_HEADERS = {
 }
 
 
-# ── Helpers ───────────────────────────────────────────────────────────
+# -- Helpers -----------------------------------------------------------
 
 def clean(t):
     return " ".join(t.split()).strip() if t else None
@@ -177,7 +177,7 @@ def extract_exp(text):
     if not text: return ""
     t = text.lower()
     if re.search(r"no\s+(prior\s+)?experience", t): return "0"
-    m = re.search(r"(\d+)\s*(?:to|-|–|—)\s*(\d+)\s*(?:years?|yrs?)", t)
+    m = re.search(r"(\d+)\s*(?:to|-|-|-)\s*(\d+)\s*(?:years?|yrs?)", t)
     if m: return f"{m.group(1)}-{m.group(2)}"
     m = re.search(r"(\d+)\s*\+\s*(?:years?|yrs?)", t)
     if m: return f"{m.group(1)}+"
@@ -195,7 +195,10 @@ def extract_salary(text):
         if any(s in t for s in syms): r["currency"] = cur; break
     m = re.search(r"(\d[\d,]*)\s*[-to]+\s*(\d[\d,]*)", text.replace(",",""))
     if m:
-        try: r["salary_min"]=float(m.group(1)); r["salary_max"]=float(m.group(2)); r["salary_disclosed"]=True
+        try:
+                    lo=float(m.group(1)); hi=float(m.group(2))
+                    if lo <= 9_999_999_999 and hi <= 9_999_999_999:
+                        r["salary_min"]=lo; r["salary_max"]=hi; r["salary_disclosed"]=True
         except ValueError: pass
     return r
 
@@ -247,19 +250,19 @@ def extract_id(url):
     return m.group(1) if m else slug[:80]
 
 
-# ── Session builder ───────────────────────────────────────────────────
+# -- Session builder ---------------------------------------------------
 
 def build_session(cf_cookie: str = ""):
     """
     Build a session that can bypass Cloudflare.
 
     Priority:
-      1. cloudscraper  (pip install cloudscraper)  ← recommended
-      2. requests with cf_clearance cookie          ← manual cookie from browser
-      3. plain requests                              ← will 403 on Cloudflare sites
+      1. cloudscraper  (pip install cloudscraper)  <- recommended
+      2. requests with cf_clearance cookie          <- manual cookie from browser
+      3. plain requests                              <- will 403 on Cloudflare sites
 
     To get cf_clearance manually:
-      - Open jobs.newtimes.co.rw in Chrome DevTools → Application → Cookies
+      - Open jobs.newtimes.co.rw in Chrome DevTools -> Application -> Cookies
       - Copy the cf_clearance value and pass it as cf_cookie here
     """
     if HAS_CLOUDSCRAPER:
@@ -272,7 +275,7 @@ def build_session(cf_cookie: str = ""):
 
     # Fallback: requests with optional cf_clearance cookie
     logger.warning(
-        "cloudscraper not installed — falling back to requests.\n"
+        "cloudscraper not installed - falling back to requests.\n"
         "  Install it: pip install cloudscraper\n"
         "  Or manually set cf_cookie from browser DevTools."
     )
@@ -295,7 +298,7 @@ def build_session(cf_cookie: str = ""):
     return session
 
 
-# ── Scraper ───────────────────────────────────────────────────────────
+# -- Scraper -----------------------------------------------------------
 
 class NewTimesScraper:
     SOURCE = "newtimes"
@@ -325,7 +328,7 @@ class NewTimesScraper:
             logger.warning(f"HTTP {status} -> {url}")
             return None
 
-    # ── Parse listing page ────────────────────────────────────────────
+    # -- Parse listing page --------------------------------------------
 
     def _parse_cards(self, soup: BeautifulSoup, endpoint: str) -> List[Dict]:
         """
@@ -349,7 +352,7 @@ class NewTimesScraper:
             "div[class*='listing'], div.card"
         )
 
-        # Strategy 2: fallback — find all links to /jobs/{id}-
+        # Strategy 2: fallback - find all links to /jobs/{id}-
         if not cards:
             for a in soup.select("a[href]"):
                 href = a.get("href","")
@@ -440,7 +443,7 @@ class NewTimesScraper:
 
                 stubs = self._parse_cards(soup, endpoint)
                 if not stubs:
-                    logger.info(f"  Page {page}: no cards found — stopping")
+                    logger.info(f"  Page {page}: no cards found - stopping")
                     break
 
                 new = 0
@@ -454,7 +457,7 @@ class NewTimesScraper:
                 # Detect end of pagination
                 has_next = bool(
                     soup.select_one("a[rel='next'],a.next,li.next a,.pagination .next")
-                    or soup.find("a", string=re.compile(r"^(next|›|»)$", re.IGNORECASE))
+                    or soup.find("a", string=re.compile(r"^(next|>|>>)$", re.IGNORECASE))
                 )
                 if not has_next:
                     break
@@ -463,7 +466,7 @@ class NewTimesScraper:
         logger.info(f"Total stubs: {len(all_stubs)}")
         return all_stubs
 
-    # ── Parse detail page ─────────────────────────────────────────────
+    # -- Parse detail page ---------------------------------------------
 
     def _parse_detail(self, url: str) -> Dict:
         detail: Dict[str, Any] = {}
@@ -580,7 +583,7 @@ class NewTimesScraper:
             logger.debug(f"Detail parse error [{url}]: {e}")
         return detail
 
-    # ── Build record ──────────────────────────────────────────────────
+    # -- Build record --------------------------------------------------
 
     def _build(self, stub: Dict, detail: Dict) -> Dict:
         card_text = stub.get("raw_card_text","") or ""
@@ -647,7 +650,7 @@ class NewTimesScraper:
         record.update(infer_eligibility(record))
         return record
 
-    # ── Main ──────────────────────────────────────────────────────────
+    # -- Main ----------------------------------------------------------
 
     def scrape(self) -> pd.DataFrame:
         logger.info("=" * 60)
@@ -659,8 +662,8 @@ class NewTimesScraper:
         if not stubs:
             logger.error(
                 "No stubs found.\n"
-                "  → Install cloudscraper:  pip install cloudscraper\n"
-                "  → Or pass cf_cookie from browser DevTools (see docstring)"
+                "  -> Install cloudscraper:  pip install cloudscraper\n"
+                "  -> Or pass cf_cookie from browser DevTools (see docstring)"
             )
             return pd.DataFrame()
 
@@ -686,7 +689,7 @@ class NewTimesScraper:
 
         df = pd.DataFrame(unique)
         df = enforce(df)
-        logger.info(f"Done in {time.time()-t0:.1f}s — {len(df)} records")
+        logger.info(f"Done in {time.time()-t0:.1f}s - {len(df)} records")
         return df
 
     def save_csv(self, df, path="newtimes_jobs.csv"):
@@ -699,7 +702,7 @@ class NewTimesScraper:
         df.to_json(path, orient="records", indent=2, force_ascii=False); logger.info(f"Saved -> {path}")
 
 
-# ── Selenium helper (last resort) ─────────────────────────────────────
+# -- Selenium helper (last resort) -------------------------------------
 
 def get_cf_cookie_via_selenium(url=BASE_URL) -> str:
     """
@@ -738,16 +741,16 @@ def get_cf_cookie_via_selenium(url=BASE_URL) -> str:
         return ""
 
 
-# ── Entry point ───────────────────────────────────────────────────────
+# -- Entry point -------------------------------------------------------
 
 def main():
-    # ── Option 1: cloudscraper installed (recommended) ────────────────
+    # -- Option 1: cloudscraper installed (recommended) ----------------
     # pip install cloudscraper
     # Then just run: python newtimes_scraper.py
 
-    # ── Option 2: manual cf_clearance cookie ─────────────────────────
+    # -- Option 2: manual cf_clearance cookie -------------------------
     # 1. Open jobs.newtimes.co.rw in Chrome
-    # 2. DevTools → Application → Cookies → copy cf_clearance value
+    # 2. DevTools -> Application -> Cookies -> copy cf_clearance value
     # 3. Pass it below:
     CF_COOKIE = ""  # paste cf_clearance value here if needed
 

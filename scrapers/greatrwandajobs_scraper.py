@@ -1,10 +1,10 @@
 """
 Job Scraper for www.greatrwandajobs.com
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+----------------------------------------------------------
 
 Site facts (confirmed from live fetch):
   Total jobs : 36,172
-  No Cloudflare — plain requests works
+  No Cloudflare - plain requests works
   CMS        : Joomla + JsJobs component
 
 Listing URL pattern  (20 cards per page, Joomla offset):
@@ -153,7 +153,7 @@ def extract_exp(text):
     if not text: return ""
     t = text.lower()
     if re.search(r"no\s+(prior\s+)?experience", t): return "0"
-    m = re.search(r"(\d+)\s*(?:to|-|–)\s*(\d+)\s*(?:years?|yrs?)", t)
+    m = re.search(r"(\d+)\s*(?:to|-|-)\s*(\d+)\s*(?:years?|yrs?)", t)
     if m: return f"{m.group(1)}-{m.group(2)}"
     m = re.search(r"(\d+)\s*\+\s*(?:years?|yrs?)", t)
     if m: return f"{m.group(1)}+"
@@ -171,7 +171,10 @@ def extract_salary(text):
         if any(s in t for s in syms): r["currency"] = cur; break
     m = re.search(r"(\d[\d,]*)\s*[-to]+\s*(\d[\d,]*)", text.replace(",",""))
     if m:
-        try: r["salary_min"]=float(m.group(1)); r["salary_max"]=float(m.group(2)); r["salary_disclosed"]=True
+        try:
+                    lo=float(m.group(1)); hi=float(m.group(2))
+                    if lo <= 9_999_999_999 and hi <= 9_999_999_999:
+                        r["salary_min"]=lo; r["salary_max"]=hi; r["salary_disclosed"]=True
         except ValueError: pass
     return r
 
@@ -298,7 +301,7 @@ class GreatRwandaJobsScraper:
             logger.warning(f"HTTP {status} -> {url}")
             return None
 
-    # ── Step 1: parse listing page cards ─────────────────────────────
+    # -- Step 1: parse listing page cards -----------------------------
 
     def _parse_listing(self, soup: BeautifulSoup) -> List[Dict]:
         """
@@ -330,7 +333,7 @@ class GreatRwandaJobsScraper:
 
             block_text = clean(block.get_text(" ")) if block else ""
 
-            # ── Company: from <img alt> nearest to this link ──────────
+            # -- Company: from <img alt> nearest to this link ----------
             company = ""
             if block:
                 img = block.find("img", alt=True)
@@ -345,29 +348,29 @@ class GreatRwandaJobsScraper:
                     if comp_a:
                         company = clean(comp_a.get("title","") or comp_a.get_text()) or ""
 
-            # ── Category ──────────────────────────────────────────────
+            # -- Category ----------------------------------------------
             category = ""
             m = re.search(r"Job Category:\s*(.+?)(?:\n|Posted|Deadline)", block_text, re.IGNORECASE)
             if m: category = clean(m.group(1)) or ""
 
-            # ── Employment type badge (appears before job link in card) ─
+            # -- Employment type badge (appears before job link in card) -
             emp_type = ""
             m = re.search(r"(Full-time|Part-time|Contract|Internship|Volunteer|Consultancy)",
                           block_text, re.IGNORECASE)
             if m: emp_type = m.group(1)
 
-            # ── Posted date ───────────────────────────────────────────
+            # -- Posted date -------------------------------------------
             posted = ""
             m = re.search(r"Posted:\s*(.+?)(?:\n|Deadline)", block_text, re.IGNORECASE)
             if m: posted = relative_to_date(clean(m.group(1)) or "")
 
-            # ── Deadline ─────────────────────────────────────────────
+            # -- Deadline ---------------------------------------------
             deadline = ""
             m = re.search(r"Deadline of this Job:\s*(.+?)(?:\n|Duty Station|$)",
                           block_text, re.IGNORECASE | re.DOTALL)
             if m: deadline = parse_deadline(clean(m.group(1)) or "")
 
-            # ── Location (Duty Station) ───────────────────────────────
+            # -- Location (Duty Station) -------------------------------
             location_raw = ""
             m = re.search(r"Duty Station:\s*(.+?)(?:\n|$)", block_text, re.IGNORECASE)
             if m: location_raw = clean(m.group(1)) or ""
@@ -394,7 +397,7 @@ class GreatRwandaJobsScraper:
             except: pass
         return 0
 
-    # ── Collect all stubs via pagination ─────────────────────────────
+    # -- Collect all stubs via pagination -----------------------------
 
     def collect_stubs(self) -> List[Dict]:
         all_stubs: List[Dict] = []
@@ -432,7 +435,7 @@ class GreatRwandaJobsScraper:
 
             new_stubs = self._parse_listing(soup)
             if not new_stubs:
-                logger.info(f"  No cards at offset {start} — end of listings")
+                logger.info(f"  No cards at offset {start} - end of listings")
                 break
 
             new = 0
@@ -443,22 +446,22 @@ class GreatRwandaJobsScraper:
             if page_num % 50 == 0:
                 logger.info(f"  Page {page_num}/{total_pages} | offset {start} | total stubs: {len(all_stubs)}")
 
-            # If 0 new results, site probably wrapped around — stop
+            # If 0 new results, site probably wrapped around - stop
             if new == 0 and page_num > 5:
-                logger.info("  No new results — stopping pagination")
+                logger.info("  No new results - stopping pagination")
                 break
 
         logger.info(f"Total stubs collected: {len(all_stubs)}")
         return all_stubs
 
-    # ── Step 2: fetch detail page ─────────────────────────────────────
+    # -- Step 2: fetch detail page -------------------------------------
 
     def _parse_detail(self, url: str) -> Dict:
         detail: Dict[str, Any] = {}
         soup = self._get(url)
         if not soup: return detail
         try:
-            # ── Company Name Extraction ───────────────────────────────
+            # -- Company Name Extraction -------------------------------
             company = ""
             
             # Try multiple selectors for company name
@@ -493,7 +496,7 @@ class GreatRwandaJobsScraper:
             if company:
                 detail["company"] = company
             
-            # Full description — Joomla JsJobs puts it in div.jsjobsview or similar
+            # Full description - Joomla JsJobs puts it in div.jsjobsview or similar
             desc_el = soup.select_one(
                 "div.jsjobsview, div.job-description, div[class*='jobdesc'], "
                 "div.jsjobs_job_description, div#jsjobs_job_detail_block, "
@@ -525,7 +528,7 @@ class GreatRwandaJobsScraper:
             logger.debug(f"Detail parse error [{url}]: {e}")
         return detail
 
-    # ── Step 3: build canonical record ───────────────────────────────
+    # -- Step 3: build canonical record -------------------------------
 
     def _build(self, stub: Dict, detail: Dict) -> Dict:
         title    = stub.get("title","")
@@ -587,7 +590,7 @@ class GreatRwandaJobsScraper:
         record.update(infer_eligibility(record))
         return record
 
-    # ── Main ──────────────────────────────────────────────────────────
+    # -- Main ----------------------------------------------------------
 
     def scrape(self) -> pd.DataFrame:
         logger.info("=" * 60)
@@ -622,7 +625,7 @@ class GreatRwandaJobsScraper:
 
         df = pd.DataFrame(unique)
         df = enforce(df)
-        logger.info(f"Done in {time.time()-t0:.1f}s — {len(df)} jobs")
+        logger.info(f"Done in {time.time()-t0:.1f}s - {len(df)} jobs")
         return df
 
     def save_csv(self, df, path="greatrwandajobs_jobs.csv"):

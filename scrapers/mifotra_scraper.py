@@ -37,16 +37,29 @@ class MifotraScraper:
         from selenium.webdriver.chrome.service import Service
         from selenium.webdriver.common.by import By
         from selenium.webdriver.common.keys import Keys
-        from webdriver_manager.chrome import ChromeDriverManager
         
         options = Options()
         if self.headless:
             options.add_argument('--headless')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
         
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=options)
+        # Try to get ChromeDriver - handle offline/download errors gracefully
+        driver = None
+        try:
+            from webdriver_manager.chrome import ChromeDriverManager
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+        except Exception as e:
+            logger.warning(f"webdriver_manager failed ({e}), trying system chromedriver...")
+            try:
+                # Fall back to system-installed chromedriver (no download needed)
+                driver = webdriver.Chrome(options=options)
+            except Exception as e2:
+                logger.error(f"Could not start Chrome: {e2}")
+                logger.error("MIFOTRA requires Chrome/Chromium installed. Skipping.")
+                return pd.DataFrame()
         
         jobs = []
         
@@ -248,16 +261,16 @@ def main():
     df = scraper.scrape()
     
     if not df.empty:
-        print(f"\n✅ SUCCESS! Scraped {len(df)} complete jobs!\n")
+        print(f"\n[OK] SUCCESS! Scraped {len(df)} complete jobs!\n")
         print(df[['title', 'company', 'education', 'experience', 'deadline']].to_string(index=False))
-        print(f"\n📊 Total: {len(df)} jobs with complete details")
+        print(f"\n[INFO] Total: {len(df)} jobs with complete details")
         
         # Show sample of qualifications
-        print("\n📋 Sample qualification:")
+        print("\n[INFO] Sample qualification:")
         if not df['qualifications'].isna().all():
             print(df['qualifications'].iloc[0][:200] + "...")
     else:
-        print("\n❌ No jobs found")
+        print("\n[ERROR] No jobs found")
 
 
 if __name__ == "__main__":
