@@ -56,8 +56,18 @@ def get_jobs_data():
     df['deadline'] = pd.to_datetime(df['deadline'], errors='coerce')
     df['scraped_at'] = pd.to_datetime(df['scraped_at'])
     
-    # Calculate days until deadline
-    df['days_to_deadline'] = (df['deadline'] - pd.Timestamp.now()).dt.days
+    # For deadlines without time component, set to 11:59 PM (end of day)
+    for idx in df.index:
+        if pd.notna(df.loc[idx, 'deadline']):
+            deadline = df.loc[idx, 'deadline']
+            # Check if time is midnight (00:00:00) - means no time was specified
+            if deadline.hour == 0 and deadline.minute == 0 and deadline.second == 0:
+                # Set to 11:59 PM of that day
+                df.loc[idx, 'deadline'] = deadline.replace(hour=23, minute=59, second=59)
+    
+    # Calculate time until deadline (full timedelta, not just days)
+    df['time_to_deadline'] = df['deadline'] - pd.Timestamp.now()
+    df['days_to_deadline'] = df['time_to_deadline'].dt.days
     
     return df
 
@@ -247,6 +257,7 @@ def create_job_seeker_page():
                 ], className="shadow-sm border-0 stat-card hover-lift")
             ], lg=3, md=4, sm=6, className="mb-3"),
             
+            # NEW JOBS
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
@@ -259,6 +270,7 @@ def create_job_seeker_page():
                 ], className="shadow-sm border-0 stat-card hover-lift")
             ], lg=3, md=4, sm=6, className="mb-3"),
             
+            # EXPIRING SOON
             dbc.Col([
                 dbc.Card([
                     dbc.CardBody([
@@ -366,6 +378,7 @@ def create_job_seeker_page():
                             id='deadline-dropdown',
                             options=[
                                 {'label': '⏰ All Deadlines', 'value': 'all'},
+                                {'label': '🚨 Expiring Soon (2 days)', 'value': '2'},
                                 {'label': '📅 This Week (7 days)', 'value': '7'},
                                 {'label': '📆 This Month (30 days)', 'value': '30'},
                                 {'label': '📊 Next 3 Months', 'value': '90'},
@@ -395,10 +408,115 @@ def create_job_seeker_page():
             ])
         ]),
         
-        # Job Cards
-        html.Div(id="job-cards-container"),
+        # MAIN LAYOUT: Left Sidebar + Job Cards
+        dbc.Row([
+            # LEFT SIDEBAR
+            dbc.Col([
+                # Quick Filters Card
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H5([
+                            html.I(className="fas fa-sliders-h me-2"),
+                            "Quick Filters"
+                        ], className="mb-4", style={'fontWeight': '600'}),
+                        
+                        # Location Quick Filter
+                        html.Div([
+                            html.H6("📍 Location", className="mb-2", style={'fontSize': '0.9rem', 'fontWeight': '600'}),
+                            dcc.Checklist(
+                                id='quick-location-filter',
+                                options=[
+                                    {'label': ' Kigali', 'value': 'Kigali'},
+                                    {'label': ' Huye', 'value': 'Huye'},
+                                    {'label': ' Musanze', 'value': 'Musanze'},
+                                    {'label': ' Rubavu', 'value': 'Rubavu'},
+                                ],
+                                value=[],
+                                className="mb-3",
+                                inputStyle={'marginRight': '8px'}
+                            ),
+                        ], className="mb-3"),
+                        
+                        # Sector Quick Filter
+                        html.Div([
+                            html.H6("💼 Sector", className="mb-2", style={'fontSize': '0.9rem', 'fontWeight': '600'}),
+                            dcc.Checklist(
+                                id='quick-sector-filter',
+                                options=[
+                                    {'label': ' IT & Tech', 'value': 'IT'},
+                                    {'label': ' Healthcare', 'value': 'Healthcare'},
+                                    {'label': ' Education', 'value': 'Education'},
+                                    {'label': ' Finance', 'value': 'Finance'},
+                                ],
+                                value=[],
+                                className="mb-3",
+                                inputStyle={'marginRight': '8px'}
+                            ),
+                        ], className="mb-3"),
+                        
+                        # Trending Keywords
+                        html.Div([
+                            html.H6("🔥 Trending", className="mb-2", style={'fontSize': '0.9rem', 'fontWeight': '600'}),
+                            html.Div([
+                                dbc.Badge("Manager", color="light", text_color="dark", className="me-1 mb-2", pill=True, style={'cursor': 'pointer'}),
+                                dbc.Badge("Developer", color="light", text_color="dark", className="me-1 mb-2", pill=True, style={'cursor': 'pointer'}),
+                                dbc.Badge("Officer", color="light", text_color="dark", className="me-1 mb-2", pill=True, style={'cursor': 'pointer'}),
+                                dbc.Badge("Nurse", color="light", text_color="dark", className="me-1 mb-2", pill=True, style={'cursor': 'pointer'}),
+                                dbc.Badge("Driver", color="light", text_color="dark", className="me-1 mb-2", pill=True, style={'cursor': 'pointer'}),
+                            ])
+                        ], className="mb-3"),
+                    ])
+                ], className="shadow-sm border-0 mb-3", style={'position': 'sticky', 'top': '20px'}),
+                
+                # Contact Card (Bottom of Sidebar)
+                dbc.Card([
+                    dbc.CardBody([
+                        html.H6([
+                            html.I(className="fas fa-address-book me-2 text-primary"),
+                            "Contact"
+                        ], className="mb-3 text-center", style={'fontWeight': '600'}),
+                        
+                        html.Div([
+                            html.A([
+                                html.I(className="fab fa-whatsapp fa-2x text-success")
+                            ], href="https://wa.me/250782765421", target="_blank", 
+                               className="me-3", 
+                               title="WhatsApp",
+                               style={'textDecoration': 'none'}),
+                            
+                            html.A([
+                                html.I(className="fas fa-envelope fa-2x text-danger")
+                            ], href="mailto:ntwaridigabia@gmail.com", 
+                               className="me-3",
+                               title="Email",
+                               style={'textDecoration': 'none'}),
+                            
+                            html.A([
+                                html.I(className="fab fa-linkedin fa-2x text-primary")
+                            ], href="https://www.linkedin.com/in/gabriel-ntwari/", target="_blank", 
+                               className="me-3",
+                               title="LinkedIn",
+                               style={'textDecoration': 'none'}),
+                            
+                            html.A([
+                                html.I(className="fab fa-x-twitter fa-2x", style={'color': '#000'})
+                            ], href="https://x.com/ntwari_gabriel", target="_blank",
+                               title="Twitter/X",
+                               style={'textDecoration': 'none'}),
+                        ], className="d-flex justify-content-center")
+                    ])
+                ], className="shadow-sm border-0", 
+                   style={'position': 'sticky', 'top': 'calc(100vh - 200px)', 'background': 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'}),
+                
+            ], lg=2, md=3, className="mb-4"),
+            
+            # MAIN CONTENT (Job Cards)
+            dbc.Col([
+                html.Div(id="job-cards-container"),
+            ], lg=10, md=9),
+        ]),
         
-    ], fluid=True, style={'maxWidth': '1400px'})
+    ], fluid=True, style={'maxWidth': '1600px'})
 
 
 @callback(
@@ -409,9 +527,11 @@ def create_job_seeker_page():
      Input("district-dropdown", "value"),
      Input("source-dropdown", "value"),
      Input("deadline-dropdown", "value"),
-     Input("reset-btn", "n_clicks")]
+     Input("reset-btn", "n_clicks"),
+     Input("quick-location-filter", "value"),
+     Input("quick-sector-filter", "value")]
 )
-def update_job_cards(search, sector, district, source, deadline, reset_clicks):
+def update_job_cards(search, sector, district, source, deadline, reset_clicks, quick_locations, quick_sectors):
     # Reset filters if button clicked
     ctx = dash.callback_context
     if ctx.triggered and ctx.triggered[0]['prop_id'] == 'reset-btn.n_clicks':
@@ -419,11 +539,16 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks):
     else:
         filtered_df = df.copy()
         
-        # Apply filters
+        # FILTER OUT EXPIRED JOBS BY DEFAULT
+        filtered_df = filtered_df[
+            (filtered_df['days_to_deadline'].isna()) |  # No deadline = keep
+            (filtered_df['days_to_deadline'] >= 0)       # Future deadline = keep
+        ]
+        
+        # Apply other filters
         if search:
             mask = (filtered_df['title'].str.contains(search, case=False, na=False) |
-                   filtered_df['company'].str.contains(search, case=False, na=False) |
-                   filtered_df['description'].str.contains(search, case=False, na=False))
+                   filtered_df['company'].str.contains(search, case=False, na=False))
             filtered_df = filtered_df[mask]
         
         if sector != 'all':
@@ -438,110 +563,199 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks):
         if deadline != 'all':
             days = int(deadline)
             filtered_df = filtered_df[filtered_df['days_to_deadline'] <= days]
+        
+        # QUICK FILTERS FROM SIDEBAR
+        if quick_locations:
+            filtered_df = filtered_df[filtered_df['district'].isin(quick_locations)]
+        
+        if quick_sectors:
+            # Handle partial matching for sectors (e.g., "IT" matches "IT & Technology")
+            sector_mask = filtered_df['sector'].str.contains('|'.join(quick_sectors), case=False, na=False)
+            filtered_df = filtered_df[sector_mask]
     
-    # Create beautiful job cards
-    cards = []
+    # Create job cards in PARALLEL layout (2 columns)
+    cards_list = []
+    
     for idx, job in filtered_df.head(100).iterrows():
-        # Deadline badge
-        if pd.notna(job['days_to_deadline']):
-            if job['days_to_deadline'] < 0:
-                deadline_badge = dbc.Badge("⚠️ EXPIRED", color="dark", className="me-2")
-            elif job['days_to_deadline'] <= 2:
+        # Deadline badge with hours/minutes for urgent jobs
+        deadline_badge = None
+        deadline_text = ""
+        
+        if pd.notna(job['time_to_deadline']):
+            total_seconds = job['time_to_deadline'].total_seconds()
+            
+            if total_seconds < 0:
+                # Expired - skip this job (already filtered out, but just in case)
+                continue
+            elif total_seconds < 3600:  # Less than 1 hour
+                minutes = int(total_seconds / 60)
                 deadline_badge = dbc.Badge(
-                    f"🚨 {int(job['days_to_deadline'])} days left!", 
+                    f"🚨 {minutes} minutes left!", 
                     color="danger", 
-                    className="me-2 deadline-urgent pulse-badge"
+                    className="fw-bold pulse"
                 )
+                deadline_text = f"Deadline: {job['deadline'].strftime('%b %d, %Y %I:%M %p')}"
+            elif total_seconds < 86400:  # Less than 24 hours (1 day)
+                hours = int(total_seconds / 3600)
+                minutes = int((total_seconds % 3600) / 60)
+                deadline_badge = dbc.Badge(
+                    f"🚨 {hours}h {minutes}m left!", 
+                    color="danger", 
+                    className="fw-bold"
+                )
+                deadline_text = f"Deadline: {job['deadline'].strftime('%b %d, %Y %I:%M %p')}"
+            elif job['days_to_deadline'] <= 2:
+                hours = int((total_seconds % 86400) / 3600)
+                deadline_badge = dbc.Badge(
+                    f"🚨 {int(job['days_to_deadline'])} days {hours}h left!", 
+                    color="danger", 
+                    className="fw-bold"
+                )
+                deadline_text = f"Deadline: {job['deadline'].strftime('%b %d, %Y')}"
             elif job['days_to_deadline'] <= 7:
                 deadline_badge = dbc.Badge(
                     f"⏰ {int(job['days_to_deadline'])} days left", 
-                    color="warning", 
-                    className="me-2"
+                    color="warning"
                 )
+                deadline_text = f"Deadline: {job['deadline'].strftime('%b %d, %Y')}"
             else:
                 deadline_badge = dbc.Badge(
                     f"✅ {int(job['days_to_deadline'])} days left", 
-                    color="success", 
-                    className="me-2"
+                    color="success"
                 )
+                deadline_text = f"Deadline: {job['deadline'].strftime('%b %d, %Y')}"
         else:
-            deadline_badge = dbc.Badge("♾️ No deadline", color="info", className="me-2")
+            deadline_badge = dbc.Badge("No deadline", color="info", className="text-white")
+            deadline_text = "No deadline specified"
         
-        card = dbc.Card([
-            dbc.CardBody([
-                dbc.Row([
-                    dbc.Col([
-                        html.H4(job['title'], className="mb-2", style={'fontWeight': '600'}),
-                        html.H6([
-                            html.I(className="fas fa-building me-2 text-muted"),
-                            job['company']
-                        ], className="text-primary mb-3"),
+        # Get education and experience values (always show with "Not Specified" if missing)
+        education_value = job['education_level'] if (pd.notna(job['education_level']) and 
+                                                      str(job['education_level']).upper() != 'EMPTY' and 
+                                                      str(job['education_level']).strip() != '') else 'Not Specified'
+        
+        experience_value = (f"{job['experience_years']} years" if (pd.notna(job['experience_years']) and 
+                                                                     str(job['experience_years']).upper() != 'EMPTY' and 
+                                                                     str(job['experience_years']).strip() != '') 
+                           else 'Not Specified')
+        
+        # Build job card
+        card = dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    # Title
+                    html.H5(job['title'], className="mb-2", 
+                           style={'fontWeight': '600', 'color': '#1a202c', 'lineHeight': '1.3'}),
+                    
+                    # Company
+                    html.Div([
+                        html.I(className="fas fa-building me-2", style={'color': '#667eea'}),
+                        html.Span(job['company'], style={'fontSize': '0.95rem', 'color': '#4a5568', 'fontWeight': '500'})
+                    ], className="mb-3"),
+                    
+                    # Badges Row
+                    html.Div([
+                        dbc.Badge([
+                            html.I(className="fas fa-briefcase me-1"),
+                            job['sector'] if pd.notna(job['sector']) else 'General'
+                        ], color="primary", className="me-2 mb-2", pill=True, 
+                           style={'fontSize': '0.75rem', 'padding': '0.4rem 0.8rem'}),
                         
+                        dbc.Badge([
+                            html.I(className="fas fa-map-marker-alt me-1"),
+                            job['district'] if pd.notna(job['district']) else 'Rwanda'
+                        ], color="secondary", className="me-2 mb-2", pill=True,
+                           style={'fontSize': '0.75rem', 'padding': '0.4rem 0.8rem'}),
+                        
+                        dbc.Badge([
+                            html.I(className="fas fa-globe me-1"),
+                            job['source']
+                        ], color="light", text_color="dark", className="me-2 mb-2", pill=True,
+                           style={'fontSize': '0.75rem', 'padding': '0.4rem 0.8rem'}),
+                    ], className="mb-3"),
+                    
+                    # Education & Experience (ALWAYS show, with "Not Specified" if empty)
+                    html.Div([
+                        # Education
                         html.Div([
-                            dbc.Badge([
-                                html.I(className="fas fa-briefcase me-1"),
-                                job['sector'] if pd.notna(job['sector']) else 'General'
-                            ], color="primary", className="me-2", pill=True),
-                            dbc.Badge([
-                                html.I(className="fas fa-map-marker-alt me-1"),
-                                job['district']
-                            ], color="secondary", className="me-2", pill=True),
-                            dbc.Badge([
-                                html.I(className="fas fa-globe me-1"),
-                                job['source']
-                            ], color="light", text_color="dark", className="me-2", pill=True),
-                            deadline_badge,
-                        ], className="mb-3"),
+                            html.Span("Education: ", 
+                                     style={'fontSize': '0.85rem', 'color': '#718096', 'fontWeight': '600'}),
+                            html.Span(education_value,
+                                     style={'fontSize': '0.85rem', 'color': '#2d3748' if education_value != 'Not Specified' else '#a0aec0'})
+                        ], className="mb-2"),
                         
-                        html.P(
-                            job['description'][:250] + "..." if pd.notna(job['description']) and len(str(job['description'])) > 250 else (job['description'] if pd.notna(job['description']) else "No description available"),
-                            className="text-muted small mb-3",
-                            style={'lineHeight': '1.6'}
-                        ),
+                        # Experience
+                        html.Div([
+                            html.Span("Experience: ", 
+                                     style={'fontSize': '0.85rem', 'color': '#718096', 'fontWeight': '600'}),
+                            html.Span(experience_value,
+                                     style={'fontSize': '0.85rem', 'color': '#2d3748' if experience_value != 'Not Specified' else '#a0aec0'})
+                        ], className="mb-2"),
+                    ], className="mb-3"),
+                    
+                    # Deadline Badge
+                    html.Div(deadline_badge, className="mb-3"),
+                    
+                    # Bottom section with Apply button and DEADLINE (not scraped date)
+                    html.Div([
+                        dbc.Button([
+                            html.I(className="fas fa-external-link-alt me-2"),
+                            "Job Details and Application"
+                        ], 
+                        href=job['source_url'], 
+                        target="_blank",
+                        color="primary", 
+                        size="sm",
+                        className="w-100",
+                        style={
+                            'borderRadius': '8px', 
+                            'fontWeight': '600',
+                            'padding': '0.6rem 1rem',
+                            'background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            'border': 'none',
+                            'transition': 'transform 0.2s'
+                        }),
                         
-                        dbc.Row([
-                            dbc.Col([
-                                dbc.Button([
-                                    html.I(className="fas fa-external-link-alt me-2"),
-                                    "View Details & Apply"
-                                ], 
-                                href=job['source_url'], 
-                                target="_blank",
-                                color="primary", 
-                                size="sm",
-                                className="btn-apply",
-                                style={'borderRadius': '20px'})
-                            ], width="auto"),
-                            dbc.Col([
-                                html.Small([
-                                    html.I(className="fas fa-clock me-1 text-muted"),
-                                    f"Posted: {job['scraped_at'].strftime('%b %d, %Y')}"
-                                ], className="text-muted")
-                            ], className="d-flex align-items-center"),
-                        ], justify="between"),
-                    ])
+                        # Show DEADLINE instead of scraped date
+                        html.Div([
+                            html.I(className="fas fa-calendar-alt me-1 text-muted", style={'fontSize': '0.7rem'}),
+                            html.Span(deadline_text, 
+                                     className="text-muted", 
+                                     style={'fontSize': '0.75rem'})
+                        ], className="text-center mt-2"),
+                    ]),
                 ])
-            ])
-        ], className="mb-3 shadow-sm job-card border-0")
+            ], className="shadow-sm job-card border-0 h-100", 
+               style={
+                   'borderRadius': '16px', 
+                   'border': '1px solid #e2e8f0',
+                   'transition': 'all 0.3s ease'
+               })
+        ], lg=6, md=12, className="mb-4")
         
-        cards.append(card)
+        cards_list.append(card)
     
-    # Results text with icon
-    results_text = html.H5([
-        html.I(className="fas fa-list-ul me-2 text-primary"),
-        f"Showing {len(cards)} of {len(filtered_df):,} jobs"
-    ], className="text-muted")
+    # Wrap cards in a Row for parallel layout
+    cards_row = dbc.Row(cards_list) if cards_list else []
     
-    if not cards:
+    # Results text
+    results_text = html.Div([
+        html.I(className="fas fa-check-circle me-2 text-success"),
+        html.Span(f"Showing {len(cards_list)} active jobs", style={'fontSize': '1.1rem', 'fontWeight': '500'})
+    ], className="mb-4")
+    
+    if not cards_list:
         return [
             dbc.Alert([
                 html.I(className="fas fa-info-circle fa-2x mb-3"),
-                html.H4("No jobs found", className="alert-heading"),
-                html.P("Try adjusting your search filters or try a different keyword."),
+                html.H4("No active jobs found", className="alert-heading"),
+                html.P("All jobs matching your filters have expired. Try removing some filters or check back later!"),
             ], color="info", className="text-center")
-        ], results_text
+        ], html.Div([
+            html.I(className="fas fa-times-circle me-2 text-warning"),
+            html.Span("0 active jobs found", style={'fontSize': '1.1rem'})
+        ])
     
-    return cards, results_text
+    return cards_row, results_text
 
 
 # ============================================================================
@@ -865,16 +1079,55 @@ def create_market_insights_page():
             ], md=6, className="mb-4"),
         ]),
         
-        # Charts Row 4 - Education & Experience (NEW - with empty value handling)
+        # Charts Row 4 - Top Sectors, Education & Job Level
         dbc.Row([
+            # Top Sectors Chart (NEW)
             dbc.Col([
                 dbc.Card([
                     dbc.CardHeader([
                         html.H5([
-                            html.I(className="fas fa-graduation-cap me-2 text-primary"),
-                            "Education Level Requirements"
+                            html.I(className="fas fa-industry me-2 text-primary"),
+                            "Top Hiring Sectors"
                         ], className="mb-0", style={'fontWeight': '600'})
                     ], style={'background': 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)', 
+                             'border': 'none', 'borderRadius': '10px 10px 0 0'}),
+                    dbc.CardBody([
+                        dcc.Graph(
+                            figure=px.bar(
+                                jobs_by_sector.head(10),
+                                x='count',
+                                y='sector',
+                                orientation='h',
+                                labels={'sector': '', 'count': 'Number of Jobs'},
+                                color='count',
+                                color_continuous_scale=[[0, '#667eea'], [1, '#764ba2']]
+                            ).update_layout(
+                                showlegend=False,
+                                height=400,
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                paper_bgcolor='rgba(0,0,0,0)',
+                                font=dict(family="Segoe UI, system-ui, -apple-system", size=12, color='#2c3e50'),
+                                margin=dict(l=20, r=20, t=20, b=20),
+                                xaxis=dict(gridcolor='rgba(200,200,200,0.2)'),
+                                yaxis=dict(gridcolor='rgba(200,200,200,0.2)', title='')
+                            ).update_traces(
+                                marker=dict(line=dict(width=0)),
+                                hovertemplate='<b>%{y}</b><br>Jobs: %{x}<extra></extra>'
+                            )
+                        )
+                    ])
+                ], className="shadow-sm border-0", style={'borderRadius': '10px'})
+            ], md=4, className="mb-4"),
+            
+            # Education Level Chart
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.H5([
+                            html.I(className="fas fa-graduation-cap me-2 text-success"),
+                            "Education Requirements"
+                        ], className="mb-0", style={'fontWeight': '600'})
+                    ], style={'background': 'linear-gradient(135deg, #2ecc7115 0%, #27ae6015 100%)', 
                              'border': 'none', 'borderRadius': '10px 10px 0 0'}),
                     dbc.CardBody([
                         dcc.Graph(
@@ -884,7 +1137,7 @@ def create_market_insights_page():
                                 values='count',
                                 names='education_level',
                                 hole=0.4,
-                                color_discrete_sequence=['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a']
+                                color_discrete_sequence=['#2ecc71', '#27ae60', '#26de81', '#20bf6b']
                             ).update_layout(
                                 height=400,
                                 plot_bgcolor='rgba(0,0,0,0)',
@@ -899,28 +1152,29 @@ def create_market_insights_page():
                         )
                     ])
                 ], className="shadow-sm border-0", style={'borderRadius': '10px'})
-            ], md=6, className="mb-4"),
+            ], md=4, className="mb-4"),
             
+            # Job Level Chart (REPLACED experience_years)
             dbc.Col([
                 dbc.Card([
                     dbc.CardHeader([
                         html.H5([
-                            html.I(className="fas fa-chart-bar me-2 text-success"),
-                            "Experience Requirements"
+                            html.I(className="fas fa-layer-group me-2 text-info"),
+                            "Job Levels"
                         ], className="mb-0", style={'fontWeight': '600'})
-                    ], style={'background': 'linear-gradient(135deg, #2ecc7115 0%, #27ae6015 100%)', 
+                    ], style={'background': 'linear-gradient(135deg, #3498db15 0%, #2980b915 100%)', 
                              'border': 'none', 'borderRadius': '10px 10px 0 0'}),
                     dbc.CardBody([
                         dcc.Graph(
                             figure=px.bar(
-                                # Filter out EMPTY values and get top 10
-                                df[df['experience_years'].notna() & (df['experience_years'] != '') & (df['experience_years'].str.upper() != 'EMPTY')]['experience_years'].value_counts().head(10).reset_index(),
+                                # Filter out EMPTY values and get top levels
+                                df[df['job_level'].notna() & (df['job_level'] != '') & (df['job_level'].str.upper() != 'EMPTY')]['job_level'].value_counts().head(10).reset_index(),
                                 x='count',
-                                y='experience_years',
+                                y='job_level',
                                 orientation='h',
-                                labels={'experience_years': 'Years', 'count': 'Number of Jobs'},
+                                labels={'job_level': '', 'count': 'Number of Jobs'},
                                 color='count',
-                                color_continuous_scale=[[0, '#2ecc71'], [1, '#27ae60']]
+                                color_continuous_scale=[[0, '#3498db'], [1, '#2980b9']]
                             ).update_layout(
                                 showlegend=False,
                                 height=400,
@@ -932,7 +1186,58 @@ def create_market_insights_page():
                                 yaxis=dict(gridcolor='rgba(200,200,200,0.2)', title='')
                             ).update_traces(
                                 marker=dict(line=dict(width=0)),
-                                hovertemplate='<b>%{y} years</b><br>Jobs: %{x}<extra></extra>'
+                                hovertemplate='<b>%{y}</b><br>Jobs: %{x}<extra></extra>'
+                            )
+                        )
+                    ])
+                ], className="shadow-sm border-0", style={'borderRadius': '10px'})
+            ], md=4, className="mb-4"),
+        ]),
+        
+        # Charts Row 5 - Employment Type (Cleaned up categories)
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.H5([
+                            html.I(className="fas fa-briefcase me-2 text-warning"),
+                            "Employment Types"
+                        ], className="mb-0", style={'fontWeight': '600'})
+                    ], style={'background': 'linear-gradient(135deg, #f39c1215 0%, #e67e2215 100%)', 
+                             'border': 'none', 'borderRadius': '10px 10px 0 0'}),
+                    dbc.CardBody([
+                        dcc.Graph(
+                            figure=px.pie(
+                                # Create a mapping for employment types to clean categories
+                                df[df['employment_type'].notna() & (df['employment_type'] != '') & (df['employment_type'].str.upper() != 'EMPTY')]
+                                .assign(
+                                    clean_type=lambda x: x['employment_type'].str.lower().map(
+                                        lambda val: 
+                                            'Full-time/Permanent' if any(term in str(val).lower() for term in ['full', 'permanent', 'full-time']) else
+                                            'Contract' if 'contract' in str(val).lower() else
+                                            'Consultancy' if 'consult' in str(val).lower() else
+                                            'Internship' if 'intern' in str(val).lower() else
+                                            'Volunteer' if 'volunteer' in str(val).lower() else
+                                            'Tender' if 'tender' in str(val).lower() else
+                                            'Others'
+                                    )
+                                )['clean_type'].value_counts().reset_index(),
+                                values='count',
+                                names='clean_type',
+                                hole=0.4,
+                                color_discrete_sequence=['#3498db', '#2ecc71', '#f39c12', '#e74c3c', '#9b59b6', '#1abc9c', '#95a5a6'],
+                                category_orders={'clean_type': ['Full-time/Permanent', 'Contract', 'Consultancy', 'Internship', 'Tender', 'Volunteer', 'Others']}
+                            ).update_layout(
+                                height=400,
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                paper_bgcolor='rgba(0,0,0,0)',
+                                font=dict(family="Segoe UI, system-ui, -apple-system", size=12, color='#2c3e50'),
+                                margin=dict(l=20, r=20, t=20, b=20),
+                                legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02)
+                            ).update_traces(
+                                textposition='inside',
+                                textinfo='percent+label',
+                                hovertemplate='<b>%{label}</b><br>Jobs: %{value}<br>%{percent}<extra></extra>'
                             )
                         )
                     ])
@@ -1020,28 +1325,15 @@ def display_page(pathname):
     else:
         return create_job_seeker_page()
 
+
 # ============================================================================
 # RUN APP
 # ============================================================================
 
-# For production deployment (Render, Heroku, etc.)
-server = app.server
-
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get('PORT', 8050))
-    
     print("\n" + "="*70)
-    print("🚀 Rwanda Jobs Multi-Page Portal")
-    print("="*70)
-    print(f"📊 Total Jobs Loaded: {len(df):,}")
-    print(f"📍 Sources: {len(df['source'].unique())}")
-    print(f"💼 Sectors: {len(df['sector'].dropna().unique())}")
-    print("\n📄 Available Pages:")
-    print("   1. Job Search Portal      → /")
-    print("   2. Market Insights        → /insights")
-    print("   3. Historical Jobs        → /historical")
-    print(f"\n🌐 Running on port: {port}")
+    print("\nOpening dashboard at: http://localhost:8050")
     print("="*70 + "\n")
     
-    app.run(debug=False, host='0.0.0.0', port=port)
+    debug_mode = os.getenv("DASH_DEBUG", "false").lower() == "true"
+    app.run(debug=debug_mode, host="0.0.0.0", port=int(os.getenv("PORT", 8050)))
