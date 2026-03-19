@@ -27,7 +27,13 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 # Cache the engine - one connection pool, never recreated
 @lru_cache(maxsize=1)
 def _get_engine():
-    return create_engine(DATABASE_URL, pool_pre_ping=True)
+    return create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=1,        # free tier: 1 connection is enough
+        max_overflow=0,     # no extra connections
+        connect_args={"connect_timeout": 10},
+    )
 
 # In-memory cache: avoids DB query on every page load/interaction
 _data_cache = {"df": None, "ts": 0}
@@ -53,7 +59,6 @@ def get_jobs_data():
         job_level,
         experience_years,
         education_level,
-        description,
         posted_date,
         deadline,
         scraped_at,
@@ -62,6 +67,7 @@ def get_jobs_data():
     FROM jobs
     WHERE is_active = true
     ORDER BY scraped_at DESC
+    LIMIT 500
     """
     
     with engine.connect() as conn:
