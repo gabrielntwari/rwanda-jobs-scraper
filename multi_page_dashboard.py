@@ -16,14 +16,14 @@ from plotly.subplots import make_subplots
 import dash
 from dash import dcc, html, Input, Output, State, dash_table, callback
 import dash_bootstrap_components as dbc
-import psycopg2
+from sqlalchemy import create_engine
 
 # Database connection
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 def get_jobs_data():
     """Fetch jobs from database"""
-    conn = psycopg2.connect(DATABASE_URL)
+    engine = create_engine(DATABASE_URL)
     
     query = """
     SELECT 
@@ -48,8 +48,8 @@ def get_jobs_data():
     ORDER BY scraped_at DESC
     """
     
-    df = pd.read_sql(query, conn)
-    conn.close()
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
     
     # Process dates
     df['posted_date'] = pd.to_datetime(df['posted_date'], errors='coerce')
@@ -80,6 +80,7 @@ app = dash.Dash(__name__, external_stylesheets=[
     "https://use.fontawesome.com/releases/v6.1.1/css/all.css"  # Font Awesome icons
 ], suppress_callback_exceptions=True)
 app.title = "Rwanda Jobs Portal"
+server = app.server  # Required for Gunicorn: gunicorn multi_page_dashboard:server
 
 # Custom CSS
 app.index_string = '''
@@ -1332,8 +1333,7 @@ def display_page(pathname):
 
 if __name__ == '__main__':
     print("\n" + "="*70)
-    print("\nOpening dashboard at: http://localhost:8050")
+    print("Opening dashboard at: http://localhost:8050")
     print("="*70 + "\n")
-    
     debug_mode = os.getenv("DASH_DEBUG", "false").lower() == "true"
     app.run(debug=debug_mode, host="0.0.0.0", port=int(os.getenv("PORT", 8050)))
