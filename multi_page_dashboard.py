@@ -17,13 +17,29 @@ import dash
 from dash import dcc, html, Input, Output, State, dash_table, callback
 import dash_bootstrap_components as dbc
 from sqlalchemy import create_engine
+from functools import lru_cache
+import threading
+import time
 
 # Database connection
 DATABASE_URL = os.getenv('DATABASE_URL')
 
+# Cache the engine - one connection pool, never recreated
+@lru_cache(maxsize=1)
+def _get_engine():
+    return create_engine(DATABASE_URL, pool_pre_ping=True)
+
+# In-memory cache: avoids DB query on every page load/interaction
+_data_cache = {"df": None, "ts": 0}
+_cache_lock = threading.Lock()
+CACHE_TTL = 300  # refresh every 5 minutes
+
 def get_jobs_data():
-    """Fetch jobs from database"""
-    engine = create_engine(DATABASE_URL)
+    """Fetch jobs from DB, cached for 5 minutes"""
+    with _cache_lock:
+        if _data_cache["df"] is not None and (time.time() - _data_cache["ts"]) < CACHE_TTL:
+            return _data_cache["df"]
+    engine = _get_engine()
     
     query = """
     SELECT 
@@ -56,23 +72,26 @@ def get_jobs_data():
     df['deadline'] = pd.to_datetime(df['deadline'], errors='coerce')
     df['scraped_at'] = pd.to_datetime(df['scraped_at'])
     
-    # For deadlines without time component, set to 11:59 PM (end of day)
-    for idx in df.index:
-        if pd.notna(df.loc[idx, 'deadline']):
-            deadline = df.loc[idx, 'deadline']
-            # Check if time is midnight (00:00:00) - means no time was specified
-            if deadline.hour == 0 and deadline.minute == 0 and deadline.second == 0:
-                # Set to 11:59 PM of that day
-                df.loc[idx, 'deadline'] = deadline.replace(hour=23, minute=59, second=59)
+    # Vectorised: set midnight deadlines to 11:59 PM (no slow row-by-row loop)
+    midnight_mask = (
+        df['deadline'].notna() &
+        (df['deadline'].dt.hour == 0) &
+        (df['deadline'].dt.minute == 0) &
+        (df['deadline'].dt.second == 0)
+    )
+    df.loc[midnight_mask, 'deadline'] = (
+        df.loc[midnight_mask, 'deadline'] + pd.Timedelta(hours=23, minutes=59, seconds=59)
+    )
     
     # Calculate time until deadline (full timedelta, not just days)
     df['time_to_deadline'] = df['deadline'] - pd.Timestamp.now()
     df['days_to_deadline'] = df['time_to_deadline'].dt.days
-    
-    return df
 
-# Load data
-df = get_jobs_data()
+    with _cache_lock:
+        _data_cache["df"] = df
+        _data_cache["ts"] = time.time()
+
+    return df
 
 # Initialize Dash app with Bootstrap theme
 app = dash.Dash(__name__, external_stylesheets=[
@@ -213,6 +232,7 @@ app.layout = html.Div([
 # ============================================================================
 
 def create_job_seeker_page():
+    df = get_jobs_data()  # uses 5-min cache
     # Calculate statistics
     total_jobs = len(df)
     jobs_by_source = df['source'].value_counts()
@@ -533,6 +553,7 @@ def create_job_seeker_page():
      Input("quick-sector-filter", "value")]
 )
 def update_job_cards(search, sector, district, source, deadline, reset_clicks, quick_locations, quick_sectors):
+    df = get_jobs_data()  # uses 5-min cache
     # Reset filters if button clicked
     ctx = dash.callback_context
     if ctx.triggered and ctx.triggered[0]['prop_id'] == 'reset-btn.n_clicks':
@@ -764,6 +785,7 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
 # ============================================================================
 
 def create_market_insights_page():
+    df = get_jobs_data()  # uses 5-min cache
     # Calculate stats
     jobs_by_sector = df['sector'].value_counts().reset_index()
     jobs_by_sector.columns = ['sector', 'count']
