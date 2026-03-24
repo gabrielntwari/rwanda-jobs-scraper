@@ -38,7 +38,7 @@ def _get_engine():
 # In-memory cache: avoids DB query on every page load/interaction
 _data_cache = {"df": None, "ts": 0}
 _cache_lock = threading.Lock()
-CACHE_TTL = 300  # refresh every 5 minutes
+CACHE_TTL = 60   # refresh every 1 minute
 
 def get_jobs_data():
     """Fetch jobs from DB, cached for 5 minutes"""
@@ -67,7 +67,6 @@ def get_jobs_data():
     FROM jobs
     WHERE is_active = true
     ORDER BY scraped_at DESC
-    LIMIT 500
     """
     
     with engine.connect() as conn:
@@ -239,21 +238,20 @@ app.layout = html.Div([
 
 def create_job_seeker_page():
     df = get_jobs_data()  # uses 5-min cache
-    # Calculate statistics
-    total_jobs = len(df)
-    jobs_by_source = df['source'].value_counts()
-    
-    # New jobs (posted within 3 days)
+    # Only count jobs with a future deadline (matches job cards filter)
+    active_df = df[df['days_to_deadline'].notna() & (df['days_to_deadline'] >= 0)]
+    total_jobs = len(active_df)
+    jobs_by_source = active_df['source'].value_counts()
+
+    # New jobs (posted within 3 days, with valid deadline)
     three_days_ago = pd.Timestamp.now() - pd.Timedelta(days=3)
-    new_jobs_count = len(df[df['scraped_at'] >= three_days_ago])
-    
+    new_jobs_count = len(active_df[active_df['scraped_at'] >= three_days_ago])
+
     # About to expire (deadline within 2 days)
-    expiring_soon_count = len(df[df['days_to_deadline'].notna() & 
-                                   (df['days_to_deadline'] <= 2) & 
-                                   (df['days_to_deadline'] >= 0)])
-    
-    # Jobs with no deadline
-    no_deadline_count = len(df[df['deadline'].isna()])
+    expiring_soon_count = len(active_df[
+                                   (active_df['days_to_deadline'] <= 2) &
+                                   (active_df['days_to_deadline'] >= 0)])
+
     
     return dbc.Container([
         # Hero Section
@@ -567,10 +565,10 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
     else:
         filtered_df = df.copy()
         
-        # FILTER OUT EXPIRED JOBS BY DEFAULT
+        # FILTER OUT EXPIRED JOBS AND JOBS WITH NO DEADLINE
         filtered_df = filtered_df[
-            (filtered_df['days_to_deadline'].isna()) |  # No deadline = keep
-            (filtered_df['days_to_deadline'] >= 0)       # Future deadline = keep
+            (filtered_df['days_to_deadline'].notna()) &  # Must have a deadline
+            (filtered_df['days_to_deadline'] >= 0)       # Deadline must be in future
         ]
         
         # Apply other filters
@@ -792,11 +790,13 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
 
 def create_market_insights_page():
     df = get_jobs_data()  # uses 5-min cache
+    # Only use jobs with a future deadline (consistent with job cards)
+    active_df = df[df['days_to_deadline'].notna() & (df['days_to_deadline'] >= 0)]
     # Calculate stats
-    jobs_by_sector = df['sector'].value_counts().reset_index()
+    jobs_by_sector = active_df['sector'].value_counts().reset_index()
     jobs_by_sector.columns = ['sector', 'count']
-    
-    jobs_by_source = df['source'].value_counts().reset_index()
+
+    jobs_by_source = active_df['source'].value_counts().reset_index()
     jobs_by_source.columns = ['source', 'count']
     
     jobs_by_district = df['district'].value_counts().reset_index()
