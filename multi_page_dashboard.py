@@ -841,7 +841,7 @@ def create_market_insights_page():
                                   style={'color': '#667eea'}),
                             html.H2(f"{len(df):,}", className="mb-1", 
                                    style={'fontWeight': '700', 'color': '#2c3e50'}),
-                            html.P("Total Active Jobs", className="text-muted mb-0 small"),
+                            html.P("Total Posted Jobs", className="text-muted mb-0 small"),
                         ], className="text-center")
                     ])
                 ], className="shadow-sm border-0 hover-lift", 
