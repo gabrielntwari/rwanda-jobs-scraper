@@ -1298,7 +1298,7 @@ def create_market_insights_page():
                             f"{jobs_by_district.iloc[0]['district']} ({jobs_by_district.iloc[0]['count']} jobs)"
                         ], className="mb-2"),
                         html.P([
-                            html.Strong("Total Active Jobs: "),
+                            html.Strong("Total Posted Jobs: "),
                             f"{len(df):,} opportunities"
                         ], className="mb-0"),
                     ])
