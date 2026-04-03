@@ -4,7 +4,7 @@ Automated job scraping system for Rwanda with multi-page dashboard.
 
 ## 📊 Features
 
-- **5 Job Sources**: JobInRwanda, NewTimes, GreatRwandaJobs, Mucuruzi, MIFOTRA
+- **10 Job Sources**: JobInRwanda, NewTimes, GreatRwandaJobs, Mucuruzi, MIFOTRA
 - **Automated Scraping**: Runs daily at 6 AM EAT via GitHub Actions
 - **Auto-Deduplication**: Removes duplicate jobs automatically
 - **Beautiful Dashboard**: Multi-page Plotly Dash interface
@@ -12,7 +12,7 @@ Automated job scraping system for Rwanda with multi-page dashboard.
 
 ## 🚀 Live Dashboard
 
-🌐 **Dashboard URL**: [Coming Soon - Deploy on Render.com]
+🌐 **Dashboard URL**: [https://rwanda-jobs-scraper.onrender.com/]
 
 ## 📦 Project Structure
 
