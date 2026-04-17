@@ -1,8 +1,6 @@
 """
 Database Adapter for Rwanda Jobs Scrapers
 ==========================================
-Connects your existing scrapers to Supabase database.
-Works with your schema.py structure.
 """
 
 import os
@@ -34,7 +32,7 @@ class SupabaseAdapter:
         if not self.conn or self.conn.closed:
             self.conn = psycopg2.connect(self.database_url)
             self.cursor = self.conn.cursor()
-            logger.info("✅ Connected to Supabase")
+            logger.info("Connected to Supabase")
     
     def close(self):
         """Close connection"""
@@ -76,7 +74,7 @@ class SupabaseAdapter:
             WHERE id = %s;
         """, (status, found, new, updated, error, run_id))
         self.conn.commit()
-        logger.info(f"✅ Completed run #{run_id}: {new} new, {updated} updated")
+        logger.info(f"Completed run #{run_id}: {new} new, {updated} updated")
     
     def save_jobs_from_dataframe(self, df: pd.DataFrame, source: str) -> Dict[str, int]:
         """
@@ -87,7 +85,7 @@ class SupabaseAdapter:
         stats = {'found': len(df), 'new': 0, 'updated': 0, 'skipped': 0}
         
         if df.empty:
-            logger.warning("⚠️  Empty DataFrame, nothing to save")
+            logger.warning("Empty DataFrame, nothing to save")
             return stats
         
         # Start run tracking
@@ -111,7 +109,7 @@ class SupabaseAdapter:
             if jobs_to_insert:
                 self._batch_insert_jobs(jobs_to_insert)
                 stats['new'] = len(jobs_to_insert)
-                logger.info(f"✅ Inserted {stats['new']} new jobs")
+                logger.info(f"Inserted {stats['new']} new jobs")
             
             # Update source statistics
             self._update_source_stats(source, stats['new'])
@@ -120,7 +118,7 @@ class SupabaseAdapter:
             self.complete_run(run_id, stats['found'], stats['new'], stats['updated'])
             
         except Exception as e:
-            logger.error(f"❌ Error saving jobs: {e}")
+            logger.error(f"Error saving jobs: {e}")
             self.complete_run(run_id, stats['found'], 0, 0, str(e))
             raise
         
