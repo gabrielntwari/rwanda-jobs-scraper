@@ -116,89 +116,98 @@ app.index_string = '''
         {%favicon%}
         {%css%}
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+            * { box-sizing: border-box; }
+
             body {
-                background-color: #f5f7fa !important;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: #f0f2f7;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+                margin: 0;
+                padding: 0;
             }
 
-            /* ── Hard cap: every Bootstrap fluid container stays centred ── */
-            .container-fluid {
-                max-width: 1380px !important;
-                margin-left: auto !important;
-                margin-right: auto !important;
-                padding-left: 2rem !important;
-                padding-right: 2rem !important;
-            }
+            /* ── Full-width navbar ── */
+            nav.navbar { width: 100% !important; padding: 0 2rem !important; }
+            .navbar-brand { font-weight: 700; font-size: 1.1rem; }
 
-            /* ── Hero ── */
-            .hero-title {
-                font-size: clamp(1.8rem, 2.8vw, 2.8rem) !important;
-                font-weight: 700;
+            /* ── Page shell: full width, no centering imposed by Bootstrap ── */
+            #react-entry-point,
+            ._dash-loading,
+            .dash-loading { width: 100% !important; }
+
+            /* ── Job cards ── */
+            .job-card {
+                transition: transform 0.25s ease, box-shadow 0.25s ease;
+                border-left: 4px solid transparent;
+                border-radius: 12px !important;
+                background: #fff;
             }
-            .hero-sub {
-                font-size: clamp(1rem, 1.4vw, 1.2rem) !important;
+            .job-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 10px 28px rgba(102,126,234,0.18) !important;
+                border-left-color: #667eea;
             }
 
             /* ── Stat cards ── */
             .stat-card {
                 border-left: 4px solid #667eea;
-                transition: all 0.2s ease;
+                border-radius: 12px !important;
+                transition: transform 0.2s ease;
             }
             .stat-card:hover { transform: scale(1.02); }
-            .stat-card .stat-number {
-                font-size: clamp(1.6rem, 2.4vw, 2.6rem) !important;
-                font-weight: 700;
+
+            /* ── Search ── */
+            .search-input input {
+                border-radius: 50px !important;
+                font-size: 1rem;
+                padding: 0.75rem 1.5rem !important;
+                border: 2px solid #e2e8f0 !important;
+                transition: border-color 0.2s;
+            }
+            .search-input input:focus {
+                border-color: #667eea !important;
+                box-shadow: 0 0 0 3px rgba(102,126,234,0.15) !important;
             }
 
-            /* ── Job cards ── */
-            .job-card {
-                transition: all 0.3s ease;
-                border-left: 4px solid transparent;
-                height: 100%;
-            }
-            .job-card:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 12px 24px rgba(0,0,0,0.15) !important;
-                border-left-color: #667eea;
-            }
-
-            /* ── Navbar ── */
-            .navbar-dark, nav.navbar {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-            }
-
+            /* ── Buttons ── */
             .btn-apply {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                border: none;
-                transition: all 0.3s ease;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                border: none !important;
+                border-radius: 8px !important;
+                font-weight: 600;
+                transition: transform 0.2s, box-shadow 0.2s;
             }
             .btn-apply:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+                box-shadow: 0 6px 16px rgba(102,126,234,0.4) !important;
             }
 
+            /* ── Sidebar ── */
+            .sidebar-card {
+                border-radius: 12px !important;
+                border: none !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+            }
+
+            /* ── Hover lift ── */
+            .hover-lift { transition: all 0.25s ease; }
+            .hover-lift:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+            }
+
+            /* ── Deadline pulse ── */
             .deadline-urgent { animation: pulse 1.5s infinite; }
             @keyframes pulse {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.6; }
+                0%,100% { opacity: 1; }
+                50% { opacity: 0.55; }
             }
 
-            .search-box {
-                border-radius: 50px;
-                border: 2px solid #e0e0e0;
-                padding: 12px 24px;
-                transition: all 0.3s ease;
-            }
-            .search-box:focus {
-                border-color: #667eea;
-                box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-            }
-
-            .hover-lift { transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
-            .hover-lift:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
-            }
+            /* ── Scrollbar ── */
+            ::-webkit-scrollbar { width: 6px; }
+            ::-webkit-scrollbar-track { background: #f0f2f7; }
+            ::-webkit-scrollbar-thumb { background: #667eea; border-radius: 3px; }
         </style>
     </head>
     <body>
@@ -212,30 +221,45 @@ app.index_string = '''
 </html>
 '''
 
-# Navbar
-navbar = dbc.NavbarSimple(
-    children=[
-        dbc.NavItem(dbc.NavLink([
-            html.I(className="fas fa-search me-2"),
-            "Job Search"
-        ], href="/", active="exact")),
-        dbc.NavItem(dbc.NavLink([
-            html.I(className="fas fa-chart-line me-2"),
-            "Market Insights"
-        ], href="/insights", active="exact")),
-        dbc.NavItem(dbc.NavLink([
-            html.I(className="fas fa-history me-2"),
-            "Historical Jobs"
-        ], href="/historical", active="exact")),
-    ],
-    brand=[
-        html.I(className="fas fa-briefcase me-2"),
-        "🇷🇼 Rwanda Jobs Portal"
-    ],
-    brand_href="/",
+# Navbar — full-width fluid navbar, no Bootstrap container width cap
+navbar = dbc.Navbar(
+    dbc.Container(
+        [
+            dbc.NavbarBrand(
+                [html.I(className="fas fa-briefcase me-2"), "RW Rwanda Jobs Portal"],
+                href="/",
+                style={"fontWeight": "700", "fontSize": "1.05rem", "color": "white"}
+            ),
+            dbc.NavbarToggler(id="navbar-toggler"),
+            dbc.Collapse(
+                dbc.Nav([
+                    dbc.NavItem(dbc.NavLink(
+                        [html.I(className="fas fa-search me-1"), " Job Search"],
+                        href="/", active="exact", style={"color": "rgba(255,255,255,0.9)"}
+                    )),
+                    dbc.NavItem(dbc.NavLink(
+                        [html.I(className="fas fa-chart-line me-1"), " Market Insights"],
+                        href="/insights", active="exact", style={"color": "rgba(255,255,255,0.9)"}
+                    )),
+                    dbc.NavItem(dbc.NavLink(
+                        [html.I(className="fas fa-history me-1"), " Historical Jobs"],
+                        href="/historical", active="exact", style={"color": "rgba(255,255,255,0.9)"}
+                    )),
+                ], className="ms-auto", navbar=True),
+                id="navbar-collapse", navbar=True,
+            ),
+        ],
+        fluid=True,
+        style={"maxWidth": "100%", "padding": "0 2rem"},
+    ),
     color="primary",
     dark=True,
-    className="mb-4 shadow",
+    className="mb-0 shadow",
+    style={
+        "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        "padding": "0.6rem 0",
+        "width": "100%",
+    },
 )
 
 # App layout
@@ -243,10 +267,10 @@ app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     navbar,
     html.Div(
-        html.Div(id='page-content'),
-        style={'maxWidth': '1400px', 'margin': '0 auto', 'padding': '0 1rem'}
+        id='page-content',
+        style={"width": "100%", "padding": "1.5rem 2rem"}
     )
-])
+], style={"width": "100%", "minHeight": "100vh"})
 
 
 # ============================================================================
@@ -270,18 +294,30 @@ def create_job_seeker_page():
                                    (active_df['days_to_deadline'] >= 0)])
 
     
-    return dbc.Container([
+    return html.Div([
         # Hero Section
+        # ── Hero ──
         dbc.Row([
             dbc.Col([
                 html.Div([
                     html.H1([
-                        html.I(className="fas fa-rocket me-3 text-primary"),
-                        "Find Your Dream Job in Rwanda"
-                    ], className="text-center mb-3 hero-title"),
-                    html.P(f"Browse {total_jobs:,} active opportunities across Rwanda", 
-                           className="text-center text-muted lead mb-4 hero-sub"),
-                ], style={'padding': '2rem 0'})
+                        html.I(className="fas fa-briefcase me-3"),
+                        "Rwanda Jobs Portal"
+                    ], style={
+                        'fontWeight': '800',
+                        'fontSize': 'clamp(1.8rem, 3vw, 2.8rem)',
+                        'color': '#1a202c',
+                        'marginBottom': '0.5rem'
+                    }),
+                    html.P(
+                        f"Discover {total_jobs:,} active opportunities across Rwanda",
+                        style={'color': '#718096', 'fontSize': '1.1rem', 'marginBottom': '0'}
+                    ),
+                ], style={
+                    'padding': '2rem 0 1.5rem',
+                    'borderBottom': '1px solid #e2e8f0',
+                    'marginBottom': '1.5rem'
+                })
             ])
         ]),
         
@@ -291,12 +327,17 @@ def create_job_seeker_page():
                 dbc.Card([
                     dbc.CardBody([
                         html.Div([
-                            html.I(className="fas fa-briefcase fa-3x text-primary mb-3"),
-                            html.H2(f"{total_jobs:,}", className="mb-1 stat-number"),
-                            html.P("Total Active Jobs", className="text-muted mb-0 small"),
-                        ], className="text-center")
-                    ])
-                ], className="shadow-sm border-0 stat-card hover-lift")
+                            html.Div(html.I(className="fas fa-briefcase fa-2x"),
+                                     style={'background':'linear-gradient(135deg,#667eea,#764ba2)',
+                                            'color':'white','borderRadius':'12px',
+                                            'width':'52px','height':'52px','display':'flex',
+                                            'alignItems':'center','justifyContent':'center',
+                                            'marginBottom':'1rem'}),
+                            html.H2(f"{total_jobs:,}", style={'fontWeight':'800','fontSize':'2rem','margin':'0 0 0.25rem'}),
+                            html.P("Total Active Jobs", style={'color':'#718096','fontSize':'0.85rem','margin':'0'}),
+                        ])
+                    ], style={'padding':'1.5rem'})
+                ], className="shadow-sm border-0 stat-card hover-lift h-100")
             ], lg=3, md=4, sm=6, className="mb-3"),
             
             # NEW JOBS
@@ -304,12 +345,17 @@ def create_job_seeker_page():
                 dbc.Card([
                     dbc.CardBody([
                         html.Div([
-                            html.I(className="fas fa-fire fa-3x text-danger mb-3"),
-                            html.H2(f"{new_jobs_count}", className="mb-1 stat-number"),
-                            html.P("New (Last 3 Days)", className="text-muted mb-0 small"),
-                        ], className="text-center")
-                    ])
-                ], className="shadow-sm border-0 stat-card hover-lift")
+                            html.Div(html.I(className="fas fa-fire fa-2x"),
+                                     style={'background':'linear-gradient(135deg,#f093fb,#f5576c)',
+                                            'color':'white','borderRadius':'12px',
+                                            'width':'52px','height':'52px','display':'flex',
+                                            'alignItems':'center','justifyContent':'center',
+                                            'marginBottom':'1rem'}),
+                            html.H2(f"{new_jobs_count}", style={'fontWeight':'800','fontSize':'2rem','margin':'0 0 0.25rem'}),
+                            html.P("New (Last 3 Days)", style={'color':'#718096','fontSize':'0.85rem','margin':'0'}),
+                        ])
+                    ], style={'padding':'1.5rem'})
+                ], className="shadow-sm border-0 stat-card hover-lift h-100")
             ], lg=3, md=4, sm=6, className="mb-3"),
             
             # EXPIRING SOON
@@ -317,12 +363,17 @@ def create_job_seeker_page():
                 dbc.Card([
                     dbc.CardBody([
                         html.Div([
-                            html.I(className="fas fa-hourglass-end fa-3x text-warning mb-3"),
-                            html.H2(f"{expiring_soon_count}", className="mb-1 stat-number"),
-                            html.P("Expiring Soon (2 Days)", className="text-muted mb-0 small"),
-                        ], className="text-center")
-                    ])
-                ], className="shadow-sm border-0 stat-card hover-lift")
+                            html.Div(html.I(className="fas fa-hourglass-end fa-2x"),
+                                     style={'background':'linear-gradient(135deg,#f7971e,#ffd200)',
+                                            'color':'white','borderRadius':'12px',
+                                            'width':'52px','height':'52px','display':'flex',
+                                            'alignItems':'center','justifyContent':'center',
+                                            'marginBottom':'1rem'}),
+                            html.H2(f"{expiring_soon_count}", style={'fontWeight':'800','fontSize':'2rem','margin':'0 0 0.25rem'}),
+                            html.P("Expiring Soon (2 Days)", style={'color':'#718096','fontSize':'0.85rem','margin':'0'}),
+                        ])
+                    ], style={'padding':'1.5rem'})
+                ], className="shadow-sm border-0 stat-card hover-lift h-100")
             ], lg=3, md=4, sm=6, className="mb-3"),
             
             # Top Sources Card
@@ -344,7 +395,7 @@ def create_job_seeker_page():
                 ], className="shadow-sm border-0 stat-card hover-lift", 
                 style={'background': 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)'})
             ], lg=3, md=12, className="mb-3"),
-        ], className="mb-4"),
+        ], className="mb-4 align-items-stretch"),
         
         # Search Bar (Prominent)
         dbc.Row([
@@ -365,7 +416,7 @@ def create_job_seeker_page():
                             ),
                         ], className="shadow", size="lg"),
                     ])
-                ], className="border-0 shadow-lg mb-4")
+                ], className="border-0 mb-4", style={"boxShadow":"0 4px 16px rgba(102,126,234,0.12)","borderRadius":"16px"})
             ])
         ]),
         
@@ -437,11 +488,15 @@ def create_job_seeker_page():
                         dbc.Button([
                             html.I(className="fas fa-sync-alt me-2"),
                             "Reset All Filters"
-                        ], id="reset-btn", color="secondary", outline=True, size="sm"),
+                        ], id="reset-btn", size="sm",
+                           style={"background": "linear-gradient(135deg,#667eea,#764ba2)",
+                                  "border": "none", "borderRadius": "6px",
+                                  "color": "white", "fontWeight": "600",
+                                  "padding": "0.4rem 1rem"}),
                     ]),
                 ]),
             ])
-        ], className="mb-4 shadow-sm border-0"),
+        ], className="mb-4 border-0", style={"borderRadius":"12px","boxShadow":"0 2px 8px rgba(0,0,0,0.06)","background":"white"}),
         
         # Results Count
         dbc.Row([
@@ -452,6 +507,7 @@ def create_job_seeker_page():
         
         # MAIN LAYOUT: Left Sidebar + Job Cards
         dbc.Row([
+
             # LEFT SIDEBAR
             dbc.Col([
                 # Quick Filters Card
@@ -548,17 +604,35 @@ def create_job_seeker_page():
                         ], className="d-flex justify-content-center")
                     ])
                 ], className="shadow-sm border-0", 
-                   style={'position': 'sticky', 'top': '20px', 'marginTop': 'auto', 'background': 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'}),
+                   style={'position': 'sticky', 'top': '20px', 'background': 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'}),
                 
-            ], lg=2, xl=2, md=3, className="mb-4", style={"minWidth": "200px", "maxWidth": "260px"}),
+            ], width="auto", className="mb-4", style={"width": "240px", "flexShrink": "0"}),
             
             # MAIN CONTENT (Job Cards)
             dbc.Col([
                 html.Div(id="job-cards-container"),
-            ], lg=10, md=9, style={"flex": "1 1 0", "maxWidth": "calc(100% - 280px)"}),
+            ], className="mb-4", style={"flex": "1", "minWidth": "0"}),
         ]),
         
-    ], fluid=False)
+        # Footer
+        html.Div([
+            html.Hr(style={'margin': '2rem 0 1rem', 'borderColor': '#e2e8f0'}),
+            html.Div([
+                html.Span("© 2025 Rwanda Jobs Portal", style={'color': '#718096', 'fontSize': '0.85rem'}),
+                html.Span(" · ", style={'color': '#cbd5e0', 'margin': '0 0.5rem'}),
+                html.Span("Built by ", style={'color': '#718096', 'fontSize': '0.85rem'}),
+                html.A("Gabriel Ntwari", href="https://www.linkedin.com/in/gabriel-ntwari/",
+                       target="_blank",
+                       style={'color': '#667eea', 'fontSize': '0.85rem', 'textDecoration': 'none', 'fontWeight': '600'}),
+                html.Span(" · ", style={'color': '#cbd5e0', 'margin': '0 0.5rem'}),
+                html.A([html.I(className="fab fa-whatsapp me-1"), "Contact"],
+                       href="https://wa.me/250782765421", target="_blank",
+                       style={'color': '#667eea', 'fontSize': '0.85rem', 'textDecoration': 'none'}),
+            ], style={'display': 'flex', 'justifyContent': 'center', 'alignItems': 'center',
+                      'flexWrap': 'wrap', 'gap': '0.25rem', 'paddingBottom': '1.5rem'})
+        ]),
+
+    ], style={'width': '100%'})
 
 
 @callback(
@@ -827,7 +901,7 @@ def create_market_insights_page():
     top_companies = df['company'].value_counts().head(10).reset_index()
     top_companies.columns = ['company', 'count']
     
-    return dbc.Container([
+    return html.Div([
         # Hero Section with Gradient Background
         dbc.Row([
             dbc.Col([
@@ -1323,7 +1397,7 @@ def create_market_insights_page():
             ], md=12, className="mb-4"),
         ]),
         
-    ], fluid=True)
+    ], style={'width': '100%'})
 
 
 # ============================================================================
@@ -1331,7 +1405,7 @@ def create_market_insights_page():
 # ============================================================================
 
 def create_historical_page():
-    return dbc.Container([
+    return html.Div([
         dbc.Row([
             dbc.Col([
                 html.H1("📜 Historical Jobs", className="text-center mb-4"),
@@ -1354,7 +1428,7 @@ def create_historical_page():
             html.P("Check back soon for this feature!", className="mb-0"),
         ], color="info"),
         
-    ], fluid=True)
+    ], style={'width': '100%'})
 
 
 # ============================================================================
