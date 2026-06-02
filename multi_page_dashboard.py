@@ -120,70 +120,155 @@ app.index_string = '''
                 background-color: #f5f7fa;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             }
-            
+
+            /* ── Global page wrapper: centres content on wide screens ── */
+            .page-wrapper {
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 0 1.5rem;
+            }
+
+            /* Make every fluid container respect the wrapper width */
+            .container-fluid {
+                max-width: 1400px;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                padding-left: 1.5rem;
+                padding-right: 1.5rem;
+            }
+
+            /* ── Navbar stays full-width but text is centred ── */
+            .navbar .container-fluid {
+                max-width: 1400px;
+            }
+
+            /* ── Hero section scales gracefully ── */
+            .hero-section {
+                padding: 3rem 0 2rem;
+                text-align: center;
+            }
+            .hero-section h1 {
+                font-size: clamp(1.8rem, 3vw, 2.8rem);
+                font-weight: 700;
+                line-height: 1.25;
+            }
+            .hero-section .lead {
+                font-size: clamp(1rem, 1.5vw, 1.25rem);
+            }
+
+            /* ── Stat cards: even 4-up on xl, never stretch weirdly ── */
+            .stat-card {
+                border-left: 4px solid #667eea;
+                transition: all 0.2s ease;
+                height: 100%;          /* equal-height cards in a row */
+            }
+            .stat-card:hover {
+                transform: scale(1.02);
+            }
+            .stat-card .card-body {
+                padding: 1.5rem 1rem;
+            }
+            .stat-card h2 {
+                font-size: clamp(1.6rem, 2.5vw, 2.4rem);
+            }
+
+            /* ── Job cards grid: 2 cols on md, 3 cols on xl ── */
             .job-card {
                 transition: all 0.3s ease;
                 border-left: 4px solid transparent;
+                height: 100%;
             }
-            
             .job-card:hover {
                 transform: translateY(-5px);
                 box-shadow: 0 12px 24px rgba(0,0,0,0.15) !important;
                 border-left-color: #667eea;
             }
-            
-            .stat-card {
-                border-left: 4px solid #667eea;
-                transition: all 0.2s ease;
+
+            /* Force 3-column job layout on large screens */
+            @media (min-width: 1200px) {
+                .job-col {
+                    flex: 0 0 auto;
+                    width: 33.3333%;
+                }
             }
-            
-            .stat-card:hover {
-                transform: scale(1.02);
+            @media (min-width: 768px) and (max-width: 1199px) {
+                .job-col {
+                    flex: 0 0 auto;
+                    width: 50%;
+                }
             }
-            
+            @media (max-width: 767px) {
+                .job-col {
+                    flex: 0 0 auto;
+                    width: 100%;
+                }
+            }
+
+            /* ── Sidebar: comfortable width on big screens ── */
+            .sidebar-col {
+                min-width: 220px;
+            }
+            @media (min-width: 1200px) {
+                .sidebar-col {
+                    flex: 0 0 auto;
+                    width: 18%;
+                }
+                .main-content-col {
+                    flex: 0 0 auto;
+                    width: 82%;
+                }
+            }
+
+            /* ── Navbar ── */
             .navbar-dark {
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
             }
-            
+
+            /* ── Apply button ── */
             .btn-apply {
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 border: none;
                 transition: all 0.3s ease;
             }
-            
             .btn-apply:hover {
                 transform: translateY(-2px);
                 box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
             }
-            
+
+            /* ── Urgency pulse ── */
             .deadline-urgent {
                 animation: pulse 1.5s infinite;
             }
-            
             @keyframes pulse {
                 0%, 100% { opacity: 1; }
                 50% { opacity: 0.6; }
             }
-            
+
+            /* ── Search box ── */
             .search-box {
                 border-radius: 50px;
                 border: 2px solid #e0e0e0;
                 padding: 12px 24px;
                 transition: all 0.3s ease;
             }
-            
             .search-box:focus {
                 border-color: #667eea;
                 box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
             }
-            
+
+            /* ── Hover lift utility ── */
             .hover-lift {
                 transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             }
-            
             .hover-lift:hover {
                 transform: translateY(-5px);
                 box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+            }
+
+            /* ── Charts page: cap chart cards so they don't balloon ── */
+            .chart-card .card-body {
+                max-height: 460px;
+                overflow: hidden;
             }
         </style>
     </head>
@@ -264,7 +349,7 @@ def create_job_seeker_page():
                     ], className="text-center mb-3", style={'fontWeight': '700'}),
                     html.P(f"Browse {total_jobs:,} active opportunities across Rwanda", 
                            className="text-center text-muted lead mb-4"),
-                ], style={'padding': '2rem 0'})
+                ], className="hero-section")
             ])
         ]),
         
@@ -533,15 +618,15 @@ def create_job_seeker_page():
                 ], className="shadow-sm border-0", 
                    style={'position': 'sticky', 'top': 'calc(100vh - 200px)', 'background': 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'}),
                 
-            ], lg=2, md=3, className="mb-4"),
+            ], lg=2, md=3, className="mb-4 sidebar-col"),
             
             # MAIN CONTENT (Job Cards)
             dbc.Col([
                 html.Div(id="job-cards-container"),
-            ], lg=10, md=9),
+            ], lg=10, md=9, className="main-content-col"),
         ]),
         
-    ], fluid=True, style={'maxWidth': '1600px'})
+    ], fluid=True)
 
 
 @callback(
@@ -756,7 +841,7 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
                    'border': '1px solid #e2e8f0',
                    'transition': 'all 0.3s ease'
                })
-        ], lg=6, md=12, className="mb-4")
+        ], xl=4, lg=6, md=12, className="mb-4 job-col")
         
         cards_list.append(card)
     
@@ -821,7 +906,7 @@ def create_market_insights_page():
                     ], className="text-center mb-3", style={'fontWeight': '700', 'color': '#2c3e50'}),
                     html.P("Data-driven insights into the Rwandan job market", 
                            className="text-center text-muted lead mb-0"),
-                ], style={
+                ], className='hero-section', style={
                     'padding': '2.5rem 1rem',
                     'background': 'linear-gradient(135deg, #667eea10 0%, #764ba210 100%)',
                     'borderRadius': '15px',
