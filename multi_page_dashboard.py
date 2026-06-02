@@ -558,7 +558,7 @@ def create_job_seeker_page():
             ], lg=10, md=9, style={"flex": "1 1 0", "maxWidth": "calc(100% - 280px)"}),
         ]),
         
-    ], fluid=True)
+    ], fluid=False)
 
 
 @callback(
