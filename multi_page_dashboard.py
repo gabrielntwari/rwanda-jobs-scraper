@@ -118,132 +118,209 @@ app.index_string = '''
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-            * { box-sizing: border-box; }
-
+            *, *::before, *::after { box-sizing: border-box; }
             html { font-size: 16px; }
 
             body {
-                background: #f0f2f7;
-                font-family: 'Inter', 'Segoe UI', sans-serif;
-                font-size: 1rem;
+                background: #eef0f6;
+                font-family: 'Inter', sans-serif;
                 margin: 0; padding: 0;
+                color: #1a202c;
             }
-
-            /* ── Scale up all text globally ── */
-            p, span, label, li, a { font-size: 1rem; }
-            h1 { font-size: 2.4rem !important; font-weight: 800 !important; }
-            h2 { font-size: 2rem !important; font-weight: 800 !important; }
-            h4 { font-size: 1.25rem !important; font-weight: 700 !important; }
-            h5 { font-size: 1.1rem !important; font-weight: 700 !important; }
-            h6 { font-size: 1rem !important; font-weight: 600 !important; }
-            .lead { font-size: 1.15rem !important; }
-            .small, small { font-size: 0.9rem !important; }
-
-            /* ── Job card text sizes ── */
-            .job-card h5 { font-size: 1.05rem !important; font-weight: 700 !important; line-height: 1.4 !important; }
-            .job-card .badge { font-size: 0.8rem !important; padding: 0.45em 0.85em !important; }
-            .job-card p, .job-card span { font-size: 0.95rem !important; }
-
-            /* ── Stat card numbers ── */
-            .stat-number { font-size: 2.6rem !important; font-weight: 800 !important; line-height: 1 !important; }
-            .stat-label  { font-size: 1rem !important; color: #718096; margin: 0; }
 
             /* ── Navbar ── */
-            nav.navbar { width: 100% !important; padding: 0.8rem 2rem !important; }
-            .navbar-brand { font-size: 1.2rem !important; font-weight: 800 !important; }
-            .nav-link { font-size: 1rem !important; font-weight: 500 !important; }
-
-            /* ── Search input ── */
-            .search-input input {
-                border-radius: 50px !important;
-                font-size: 1.05rem !important;
-                padding: 0.85rem 1.75rem !important;
-                border: 2px solid #e2e8f0 !important;
-                transition: border-color 0.2s;
-            }
-            .search-input input:focus {
-                border-color: #667eea !important;
-                box-shadow: 0 0 0 3px rgba(102,126,234,0.15) !important;
-            }
-            .search-input .input-group-text {
-                padding: 0.85rem 1.25rem !important;
-            }
-
-            /* ── Filter dropdowns ── */
-            .Select-control, .Select-value-label, .Select-placeholder,
-            .VirtualizedSelectOption { font-size: 0.95rem !important; }
-            .dash-dropdown .Select-control { min-height: 42px !important; }
-
-            /* ── Buttons ── */
-            .btn { font-size: 0.95rem !important; padding: 0.6rem 1.2rem !important; }
-            .btn-apply {
+            nav.navbar {
+                width: 100% !important;
+                padding: 0.9rem 2.5rem !important;
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-                border: none !important;
-                border-radius: 8px !important;
-                font-size: 0.95rem !important;
-                font-weight: 600 !important;
-                padding: 0.65rem 1.25rem !important;
-                transition: transform 0.2s, box-shadow 0.2s;
             }
-            .btn-apply:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(102,126,234,0.4) !important;
+            .navbar-brand {
+                font-size: 1.25rem !important;
+                font-weight: 800 !important;
+                color: white !important;
             }
+            .nav-link {
+                font-size: 1rem !important;
+                font-weight: 500 !important;
+                color: rgba(255,255,255,0.9) !important;
+                padding: 0.4rem 0.9rem !important;
+            }
+            .nav-link:hover { color: white !important; }
 
-            /* ── Cards general ── */
-            .card { border-radius: 14px !important; }
-            .card-body { padding: 1.5rem !important; }
-            .card-header { padding: 1rem 1.5rem !important; font-size: 1rem !important; }
+            /* ── Page padding ── */
+            #page-content { padding: 2rem 2.5rem !important; }
 
-            /* ── Job cards ── */
-            .job-card {
-                transition: transform 0.25s ease, box-shadow 0.25s ease;
-                border-left: 4px solid transparent;
-                border-radius: 14px !important;
-                background: #fff;
+            /* ── Hero ── */
+            .hero-wrap {
+                padding: 2rem 0 1.75rem;
+                border-bottom: 1px solid #dde1ec;
+                margin-bottom: 2rem;
             }
-            .job-card:hover {
-                transform: translateY(-4px);
-                box-shadow: 0 10px 28px rgba(102,126,234,0.18) !important;
-                border-left-color: #667eea;
+            .hero-title {
+                font-size: 2.4rem !important;
+                font-weight: 800 !important;
+                color: #1a202c !important;
+                letter-spacing: -0.5px;
+                margin-bottom: 0.4rem !important;
+            }
+            .hero-sub {
+                font-size: 1.15rem !important;
+                color: #718096 !important;
+                margin: 0 !important;
             }
 
             /* ── Stat cards ── */
             .stat-card {
-                border-left: 4px solid #667eea;
-                border-radius: 14px !important;
-                transition: transform 0.2s ease;
+                border-radius: 16px !important;
+                border: none !important;
+                border-left: 5px solid #667eea !important;
+                background: white !important;
+                transition: transform 0.2s, box-shadow 0.2s;
+                height: 100%;
             }
-            .stat-card:hover { transform: scale(1.02); }
+            .stat-card:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 24px rgba(102,126,234,0.2) !important;
+            }
+            .stat-card .card-body { padding: 1.75rem 1.5rem !important; }
+            .stat-number {
+                font-size: 2.8rem !important;
+                font-weight: 800 !important;
+                line-height: 1 !important;
+                color: #1a202c !important;
+                margin: 0.5rem 0 0.3rem !important;
+                display: block;
+            }
+            .stat-label {
+                font-size: 0.95rem !important;
+                color: #718096 !important;
+                font-weight: 500 !important;
+                margin: 0 !important;
+            }
+            .stat-icon {
+                width: 52px; height: 52px;
+                border-radius: 12px;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 1.4rem;
+                color: white;
+                margin-bottom: 0;
+            }
+
+            /* ── Search ── */
+            .search-wrap .card { border-radius: 16px !important; border: none !important;
+                                  box-shadow: 0 4px 16px rgba(102,126,234,0.12) !important; }
+            .search-wrap input {
+                font-size: 1.05rem !important;
+                padding: 0.9rem 1.5rem !important;
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+            }
+            .search-wrap .input-group-text {
+                background: linear-gradient(135deg,#667eea,#764ba2) !important;
+                color: white !important;
+                border: none !important;
+                padding: 0.9rem 1.25rem !important;
+                font-size: 1.1rem !important;
+            }
+
+            /* ── Filters card ── */
+            .filters-card {
+                border-radius: 16px !important;
+                border: none !important;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.06) !important;
+                background: white !important;
+            }
+            .filters-card .card-body { padding: 1.5rem !important; }
+            label.form-label { font-size: 0.95rem !important; font-weight: 600 !important; color: #4a5568 !important; }
+
+            /* ── Reset button ── */
+            #reset-btn {
+                background: linear-gradient(135deg,#667eea,#764ba2) !important;
+                border: none !important; border-radius: 8px !important;
+                color: white !important; font-weight: 600 !important;
+                font-size: 0.9rem !important; padding: 0.45rem 1.1rem !important;
+            }
+
+            /* ── Results count ── */
+            #results-count { font-size: 1.05rem !important; font-weight: 700 !important; }
+
+            /* ── Job cards ── */
+            .job-card {
+                border-radius: 16px !important;
+                border: none !important;
+                border-left: 4px solid transparent !important;
+                background: white !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+                transition: transform 0.25s, box-shadow 0.25s, border-left-color 0.25s;
+                height: 100%;
+            }
+            .job-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 12px 28px rgba(102,126,234,0.18) !important;
+                border-left-color: #667eea !important;
+            }
+            .job-card .card-body { padding: 1.4rem 1.5rem !important; }
+            .job-card h5 {
+                font-size: 1.05rem !important;
+                font-weight: 700 !important;
+                color: #1a202c !important;
+                line-height: 1.45 !important;
+                margin-bottom: 0.5rem !important;
+            }
+            .job-card .company-name {
+                font-size: 0.95rem !important;
+                font-weight: 600 !important;
+                color: #4a5568 !important;
+            }
+            .job-card .badge {
+                font-size: 0.8rem !important;
+                padding: 0.42em 0.85em !important;
+                border-radius: 20px !important;
+            }
+            .job-card p, .job-card span.detail-text {
+                font-size: 0.92rem !important;
+                color: #4a5568 !important;
+            }
+            .job-card .deadline-text {
+                font-size: 0.82rem !important;
+                color: #718096 !important;
+            }
+            .job-card .btn-apply {
+                font-size: 0.92rem !important;
+                padding: 0.6rem 1rem !important;
+                font-weight: 600 !important;
+                border-radius: 10px !important;
+            }
 
             /* ── Sidebar ── */
-            .sidebar-card { border-radius: 14px !important; border: none !important;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important; }
+            .sidebar-card {
+                border-radius: 16px !important;
+                border: none !important;
+                background: white !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+            }
+            .sidebar-card .card-body { padding: 1.5rem !important; }
+            .sidebar-card h5 { font-size: 1rem !important; font-weight: 700 !important; }
+            .sidebar-card h6 { font-size: 0.95rem !important; font-weight: 700 !important; margin-bottom: 0.75rem !important; }
+            .form-check-label { font-size: 0.92rem !important; color: #4a5568 !important; }
+            .form-check-input { width: 15px !important; height: 15px !important; margin-top: 0.2rem !important; }
 
             /* ── Hover lift ── */
             .hover-lift { transition: all 0.25s ease; }
-            .hover-lift:hover {
-                transform: translateY(-4px);
-                box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
-            }
+            .hover-lift:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important; }
 
             /* ── Deadline pulse ── */
             .deadline-urgent { animation: pulse 1.5s infinite; }
             @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
 
             /* ── Scrollbar ── */
-            ::-webkit-scrollbar { width: 6px; }
-            ::-webkit-scrollbar-track { background: #f0f2f7; }
-            ::-webkit-scrollbar-thumb { background: #667eea; border-radius: 3px; }
+            ::-webkit-scrollbar { width: 7px; }
+            ::-webkit-scrollbar-track { background: #eef0f6; }
+            ::-webkit-scrollbar-thumb { background: #667eea; border-radius: 4px; }
 
-            /* ── Results count ── */
-            #results-count { font-size: 1rem !important; font-weight: 600 !important; }
-
-            /* ── Checklist labels ── */
-            .form-check-label { font-size: 0.95rem !important; }
-
-            /* ── Badges ── */
-            .badge { font-size: 0.8rem !important; }
+            /* ── Dropdown option text ── */
+            .Select-value-label, .Select-placeholder { font-size: 0.95rem !important; }
         </style>
     </head>
     <body>
@@ -339,22 +416,12 @@ def create_job_seeker_page():
                     html.H1([
                         html.I(className="fas fa-briefcase me-3"),
                         "Rwanda Jobs Portal"
-                    ], style={
-                        'fontWeight': '800',
-                        'fontSize': '2.6rem',
-                        'color': '#1a202c',
-                        'marginBottom': '0.6rem',
-                        'letterSpacing': '-0.5px'
-                    }),
+                    ], className="hero-title"),
                     html.P(
                         f"Discover {total_jobs:,} active opportunities across Rwanda",
-                        style={'color': '#718096', 'fontSize': '1.2rem', 'marginBottom': '0'}
+                        className="hero-sub"
                     ),
-                ], style={
-                    'padding': '2.5rem 0 2rem',
-                    'borderBottom': '1px solid #e2e8f0',
-                    'marginBottom': '2rem'
-                })
+                ], className="hero-wrap")
             ])
         ]),
         
@@ -364,16 +431,16 @@ def create_job_seeker_page():
                 dbc.Card([
                     dbc.CardBody([
                         html.Div([
-                            html.Div(html.I(className="fas fa-briefcase fa-2x"),
-                                     style={'background':'linear-gradient(135deg,#667eea,#764ba2)',
-                                            'color':'white','borderRadius':'12px',
-                                            'width':'64px','height':'64px','display':'flex',
-                                            'alignItems':'center','justifyContent':'center',
-                                            'marginBottom':'1.25rem'}),
-                            html.H2(f"{total_jobs:,}", style={'fontWeight':'800','fontSize':'2.6rem','margin':'0 0 0.35rem','lineHeight':'1'}),
-                            html.P("Total Active Jobs", style={'color':'#718096','fontSize':'1rem','margin':'0','fontWeight':'500'}),
-                        ])
-                    ], style={'padding':'1.5rem'})
+                            html.Div(html.I(className="fas fa-briefcase", style={'fontSize':'1.5rem'}),
+                                style={'background':'linear-gradient(135deg,#667eea,#764ba2)',
+                                       'color':'white','borderRadius':'14px','width':'58px','height':'58px',
+                                       'display':'flex','alignItems':'center','justifyContent':'center','flexShrink':'0'}),
+                            html.Div([
+                                html.Div(f"{total_jobs:,}", className="stat-number"),
+                                html.P("Total Active Jobs", className="stat-label"),
+                            ], style={'marginLeft':'1.1rem'})
+                        ], style={'display':'flex','alignItems':'center'})
+                    ])
                 ], className="shadow-sm border-0 stat-card hover-lift h-100")
             ], lg=3, md=4, sm=6, className="mb-3"),
             
@@ -382,16 +449,16 @@ def create_job_seeker_page():
                 dbc.Card([
                     dbc.CardBody([
                         html.Div([
-                            html.Div(html.I(className="fas fa-fire fa-2x"),
-                                     style={'background':'linear-gradient(135deg,#f093fb,#f5576c)',
-                                            'color':'white','borderRadius':'12px',
-                                            'width':'64px','height':'64px','display':'flex',
-                                            'alignItems':'center','justifyContent':'center',
-                                            'marginBottom':'1.25rem'}),
-                            html.H2(f"{new_jobs_count}", style={'fontWeight':'800','fontSize':'2.6rem','margin':'0 0 0.35rem','lineHeight':'1'}),
-                            html.P("New (Last 3 Days)", style={'color':'#718096','fontSize':'1rem','margin':'0','fontWeight':'500'}),
-                        ])
-                    ], style={'padding':'1.5rem'})
+                            html.Div(html.I(className="fas fa-fire", style={'fontSize':'1.5rem'}),
+                                style={'background':'linear-gradient(135deg,#f093fb,#f5576c)',
+                                       'color':'white','borderRadius':'14px','width':'58px','height':'58px',
+                                       'display':'flex','alignItems':'center','justifyContent':'center','flexShrink':'0'}),
+                            html.Div([
+                                html.Div(f"{new_jobs_count}", className="stat-number"),
+                                html.P("New (Last 3 Days)", className="stat-label"),
+                            ], style={'marginLeft':'1.1rem'})
+                        ], style={'display':'flex','alignItems':'center'})
+                    ])
                 ], className="shadow-sm border-0 stat-card hover-lift h-100")
             ], lg=3, md=4, sm=6, className="mb-3"),
             
@@ -400,16 +467,16 @@ def create_job_seeker_page():
                 dbc.Card([
                     dbc.CardBody([
                         html.Div([
-                            html.Div(html.I(className="fas fa-hourglass-end fa-2x"),
-                                     style={'background':'linear-gradient(135deg,#f7971e,#ffd200)',
-                                            'color':'white','borderRadius':'12px',
-                                            'width':'64px','height':'64px','display':'flex',
-                                            'alignItems':'center','justifyContent':'center',
-                                            'marginBottom':'1.25rem'}),
-                            html.H2(f"{expiring_soon_count}", style={'fontWeight':'800','fontSize':'2.6rem','margin':'0 0 0.35rem','lineHeight':'1'}),
-                            html.P("Expiring Soon (2 Days)", style={'color':'#718096','fontSize':'1rem','margin':'0','fontWeight':'500'}),
-                        ])
-                    ], style={'padding':'1.5rem'})
+                            html.Div(html.I(className="fas fa-hourglass-end", style={'fontSize':'1.5rem'}),
+                                style={'background':'linear-gradient(135deg,#f7971e,#ffd200)',
+                                       'color':'white','borderRadius':'14px','width':'58px','height':'58px',
+                                       'display':'flex','alignItems':'center','justifyContent':'center','flexShrink':'0'}),
+                            html.Div([
+                                html.Div(f"{expiring_soon_count}", className="stat-number"),
+                                html.P("Expiring Soon (2 Days)", className="stat-label"),
+                            ], style={'marginLeft':'1.1rem'})
+                        ], style={'display':'flex','alignItems':'center'})
+                    ])
                 ], className="shadow-sm border-0 stat-card hover-lift h-100")
             ], lg=3, md=4, sm=6, className="mb-3"),
             
@@ -418,13 +485,13 @@ def create_job_seeker_page():
                 dbc.Card([
                     dbc.CardBody([
                         html.H6([
-                            html.I(className="fas fa-chart-pie me-2 text-primary"),
-                            "📊 Top Job Sources"
-                        ], className="mb-3", style={'fontWeight': '600'}),
+                            html.I(className="fas fa-chart-pie me-2", style={'color':'#667eea'}),
+                            "Top Job Sources"
+                        ], style={'fontWeight':'700','fontSize':'1rem','color':'#1a202c','marginBottom':'1rem'}),
                         html.Div([
                             html.Div([
-                                dbc.Badge(source, color="primary", className="me-2", pill=True),
-                                html.Span(f"{count}", className="fw-bold text-dark")
+                                dbc.Badge(source, color="primary", className="me-2", pill=True, style={'fontSize':'0.82rem'}),
+                                html.Span(f"{count}", style={'fontWeight':'700','fontSize':'0.95rem','color':'#1a202c'})
                             ], className="mb-2 d-flex justify-content-between align-items-center")
                             for source, count in jobs_by_source.head(3).items()
                         ])
