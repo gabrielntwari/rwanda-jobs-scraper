@@ -116,31 +116,90 @@ app.index_string = '''
         {%favicon%}
         {%css%}
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
             * { box-sizing: border-box; }
+
+            html { font-size: 16px; }
 
             body {
                 background: #f0f2f7;
                 font-family: 'Inter', 'Segoe UI', sans-serif;
-                margin: 0;
-                padding: 0;
+                font-size: 1rem;
+                margin: 0; padding: 0;
             }
 
-            /* ── Full-width navbar ── */
-            nav.navbar { width: 100% !important; padding: 0 2rem !important; }
-            .navbar-brand { font-weight: 700; font-size: 1.1rem; }
+            /* ── Scale up all text globally ── */
+            p, span, label, li, a { font-size: 1rem; }
+            h1 { font-size: 2.4rem !important; font-weight: 800 !important; }
+            h2 { font-size: 2rem !important; font-weight: 800 !important; }
+            h4 { font-size: 1.25rem !important; font-weight: 700 !important; }
+            h5 { font-size: 1.1rem !important; font-weight: 700 !important; }
+            h6 { font-size: 1rem !important; font-weight: 600 !important; }
+            .lead { font-size: 1.15rem !important; }
+            .small, small { font-size: 0.9rem !important; }
 
-            /* ── Page shell: full width, no centering imposed by Bootstrap ── */
-            #react-entry-point,
-            ._dash-loading,
-            .dash-loading { width: 100% !important; }
+            /* ── Job card text sizes ── */
+            .job-card h5 { font-size: 1.05rem !important; font-weight: 700 !important; line-height: 1.4 !important; }
+            .job-card .badge { font-size: 0.8rem !important; padding: 0.45em 0.85em !important; }
+            .job-card p, .job-card span { font-size: 0.95rem !important; }
+
+            /* ── Stat card numbers ── */
+            .stat-number { font-size: 2.6rem !important; font-weight: 800 !important; line-height: 1 !important; }
+            .stat-label  { font-size: 1rem !important; color: #718096; margin: 0; }
+
+            /* ── Navbar ── */
+            nav.navbar { width: 100% !important; padding: 0.8rem 2rem !important; }
+            .navbar-brand { font-size: 1.2rem !important; font-weight: 800 !important; }
+            .nav-link { font-size: 1rem !important; font-weight: 500 !important; }
+
+            /* ── Search input ── */
+            .search-input input {
+                border-radius: 50px !important;
+                font-size: 1.05rem !important;
+                padding: 0.85rem 1.75rem !important;
+                border: 2px solid #e2e8f0 !important;
+                transition: border-color 0.2s;
+            }
+            .search-input input:focus {
+                border-color: #667eea !important;
+                box-shadow: 0 0 0 3px rgba(102,126,234,0.15) !important;
+            }
+            .search-input .input-group-text {
+                padding: 0.85rem 1.25rem !important;
+            }
+
+            /* ── Filter dropdowns ── */
+            .Select-control, .Select-value-label, .Select-placeholder,
+            .VirtualizedSelectOption { font-size: 0.95rem !important; }
+            .dash-dropdown .Select-control { min-height: 42px !important; }
+
+            /* ── Buttons ── */
+            .btn { font-size: 0.95rem !important; padding: 0.6rem 1.2rem !important; }
+            .btn-apply {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                border: none !important;
+                border-radius: 8px !important;
+                font-size: 0.95rem !important;
+                font-weight: 600 !important;
+                padding: 0.65rem 1.25rem !important;
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .btn-apply:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(102,126,234,0.4) !important;
+            }
+
+            /* ── Cards general ── */
+            .card { border-radius: 14px !important; }
+            .card-body { padding: 1.5rem !important; }
+            .card-header { padding: 1rem 1.5rem !important; font-size: 1rem !important; }
 
             /* ── Job cards ── */
             .job-card {
                 transition: transform 0.25s ease, box-shadow 0.25s ease;
                 border-left: 4px solid transparent;
-                border-radius: 12px !important;
+                border-radius: 14px !important;
                 background: #fff;
             }
             .job-card:hover {
@@ -152,43 +211,14 @@ app.index_string = '''
             /* ── Stat cards ── */
             .stat-card {
                 border-left: 4px solid #667eea;
-                border-radius: 12px !important;
+                border-radius: 14px !important;
                 transition: transform 0.2s ease;
             }
             .stat-card:hover { transform: scale(1.02); }
 
-            /* ── Search ── */
-            .search-input input {
-                border-radius: 50px !important;
-                font-size: 1rem;
-                padding: 0.75rem 1.5rem !important;
-                border: 2px solid #e2e8f0 !important;
-                transition: border-color 0.2s;
-            }
-            .search-input input:focus {
-                border-color: #667eea !important;
-                box-shadow: 0 0 0 3px rgba(102,126,234,0.15) !important;
-            }
-
-            /* ── Buttons ── */
-            .btn-apply {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-                border: none !important;
-                border-radius: 8px !important;
-                font-weight: 600;
-                transition: transform 0.2s, box-shadow 0.2s;
-            }
-            .btn-apply:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(102,126,234,0.4) !important;
-            }
-
             /* ── Sidebar ── */
-            .sidebar-card {
-                border-radius: 12px !important;
-                border: none !important;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-            }
+            .sidebar-card { border-radius: 14px !important; border: none !important;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important; }
 
             /* ── Hover lift ── */
             .hover-lift { transition: all 0.25s ease; }
@@ -199,15 +229,21 @@ app.index_string = '''
 
             /* ── Deadline pulse ── */
             .deadline-urgent { animation: pulse 1.5s infinite; }
-            @keyframes pulse {
-                0%,100% { opacity: 1; }
-                50% { opacity: 0.55; }
-            }
+            @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
 
             /* ── Scrollbar ── */
             ::-webkit-scrollbar { width: 6px; }
             ::-webkit-scrollbar-track { background: #f0f2f7; }
             ::-webkit-scrollbar-thumb { background: #667eea; border-radius: 3px; }
+
+            /* ── Results count ── */
+            #results-count { font-size: 1rem !important; font-weight: 600 !important; }
+
+            /* ── Checklist labels ── */
+            .form-check-label { font-size: 0.95rem !important; }
+
+            /* ── Badges ── */
+            .badge { font-size: 0.8rem !important; }
         </style>
     </head>
     <body>
@@ -305,18 +341,19 @@ def create_job_seeker_page():
                         "Rwanda Jobs Portal"
                     ], style={
                         'fontWeight': '800',
-                        'fontSize': 'clamp(1.8rem, 3vw, 2.8rem)',
+                        'fontSize': '2.6rem',
                         'color': '#1a202c',
-                        'marginBottom': '0.5rem'
+                        'marginBottom': '0.6rem',
+                        'letterSpacing': '-0.5px'
                     }),
                     html.P(
                         f"Discover {total_jobs:,} active opportunities across Rwanda",
-                        style={'color': '#718096', 'fontSize': '1.1rem', 'marginBottom': '0'}
+                        style={'color': '#718096', 'fontSize': '1.2rem', 'marginBottom': '0'}
                     ),
                 ], style={
-                    'padding': '2rem 0 1.5rem',
+                    'padding': '2.5rem 0 2rem',
                     'borderBottom': '1px solid #e2e8f0',
-                    'marginBottom': '1.5rem'
+                    'marginBottom': '2rem'
                 })
             ])
         ]),
@@ -330,11 +367,11 @@ def create_job_seeker_page():
                             html.Div(html.I(className="fas fa-briefcase fa-2x"),
                                      style={'background':'linear-gradient(135deg,#667eea,#764ba2)',
                                             'color':'white','borderRadius':'12px',
-                                            'width':'52px','height':'52px','display':'flex',
+                                            'width':'64px','height':'64px','display':'flex',
                                             'alignItems':'center','justifyContent':'center',
-                                            'marginBottom':'1rem'}),
-                            html.H2(f"{total_jobs:,}", style={'fontWeight':'800','fontSize':'2rem','margin':'0 0 0.25rem'}),
-                            html.P("Total Active Jobs", style={'color':'#718096','fontSize':'0.85rem','margin':'0'}),
+                                            'marginBottom':'1.25rem'}),
+                            html.H2(f"{total_jobs:,}", style={'fontWeight':'800','fontSize':'2.6rem','margin':'0 0 0.35rem','lineHeight':'1'}),
+                            html.P("Total Active Jobs", style={'color':'#718096','fontSize':'1rem','margin':'0','fontWeight':'500'}),
                         ])
                     ], style={'padding':'1.5rem'})
                 ], className="shadow-sm border-0 stat-card hover-lift h-100")
@@ -348,11 +385,11 @@ def create_job_seeker_page():
                             html.Div(html.I(className="fas fa-fire fa-2x"),
                                      style={'background':'linear-gradient(135deg,#f093fb,#f5576c)',
                                             'color':'white','borderRadius':'12px',
-                                            'width':'52px','height':'52px','display':'flex',
+                                            'width':'64px','height':'64px','display':'flex',
                                             'alignItems':'center','justifyContent':'center',
-                                            'marginBottom':'1rem'}),
-                            html.H2(f"{new_jobs_count}", style={'fontWeight':'800','fontSize':'2rem','margin':'0 0 0.25rem'}),
-                            html.P("New (Last 3 Days)", style={'color':'#718096','fontSize':'0.85rem','margin':'0'}),
+                                            'marginBottom':'1.25rem'}),
+                            html.H2(f"{new_jobs_count}", style={'fontWeight':'800','fontSize':'2.6rem','margin':'0 0 0.35rem','lineHeight':'1'}),
+                            html.P("New (Last 3 Days)", style={'color':'#718096','fontSize':'1rem','margin':'0','fontWeight':'500'}),
                         ])
                     ], style={'padding':'1.5rem'})
                 ], className="shadow-sm border-0 stat-card hover-lift h-100")
@@ -366,11 +403,11 @@ def create_job_seeker_page():
                             html.Div(html.I(className="fas fa-hourglass-end fa-2x"),
                                      style={'background':'linear-gradient(135deg,#f7971e,#ffd200)',
                                             'color':'white','borderRadius':'12px',
-                                            'width':'52px','height':'52px','display':'flex',
+                                            'width':'64px','height':'64px','display':'flex',
                                             'alignItems':'center','justifyContent':'center',
-                                            'marginBottom':'1rem'}),
-                            html.H2(f"{expiring_soon_count}", style={'fontWeight':'800','fontSize':'2rem','margin':'0 0 0.25rem'}),
-                            html.P("Expiring Soon (2 Days)", style={'color':'#718096','fontSize':'0.85rem','margin':'0'}),
+                                            'marginBottom':'1.25rem'}),
+                            html.H2(f"{expiring_soon_count}", style={'fontWeight':'800','fontSize':'2.6rem','margin':'0 0 0.35rem','lineHeight':'1'}),
+                            html.P("Expiring Soon (2 Days)", style={'color':'#718096','fontSize':'1rem','margin':'0','fontWeight':'500'}),
                         ])
                     ], style={'padding':'1.5rem'})
                 ], className="shadow-sm border-0 stat-card hover-lift h-100")
@@ -516,11 +553,11 @@ def create_job_seeker_page():
                         html.H5([
                             html.I(className="fas fa-sliders-h me-2"),
                             "Quick Filters"
-                        ], className="mb-4", style={'fontWeight': '600'}),
+                        ], className="mb-4", style={'fontWeight': '700', 'fontSize': '1.1rem'}),
                         
                         # Location Quick Filter
                         html.Div([
-                            html.H6("📍 Location", className="mb-2", style={'fontSize': '0.9rem', 'fontWeight': '600'}),
+                            html.H6("📍 Location", className="mb-2", style={'fontSize': '1rem', 'fontWeight': '700'}),
                             dcc.Checklist(
                                 id='quick-location-filter',
                                 options=[
@@ -531,13 +568,13 @@ def create_job_seeker_page():
                                 ],
                                 value=[],
                                 className="mb-3",
-                                inputStyle={'marginRight': '8px'}
+                                inputStyle={'marginRight': '10px', 'width': '16px', 'height': '16px'}
                             ),
                         ], className="mb-3"),
                         
                         # Sector Quick Filter
                         html.Div([
-                            html.H6("💼 Sector", className="mb-2", style={'fontSize': '0.9rem', 'fontWeight': '600'}),
+                            html.H6("💼 Sector", className="mb-2", style={'fontSize': '1rem', 'fontWeight': '700'}),
                             dcc.Checklist(
                                 id='quick-sector-filter',
                                 options=[
@@ -548,13 +585,13 @@ def create_job_seeker_page():
                                 ],
                                 value=[],
                                 className="mb-3",
-                                inputStyle={'marginRight': '8px'}
+                                inputStyle={'marginRight': '10px', 'width': '16px', 'height': '16px'}
                             ),
                         ], className="mb-3"),
                         
                         # Trending Keywords
                         html.Div([
-                            html.H6("🔥 Trending", className="mb-2", style={'fontSize': '0.9rem', 'fontWeight': '600'}),
+                            html.H6("🔥 Trending", className="mb-2", style={'fontSize': '1rem', 'fontWeight': '700'}),
                             html.Div([
                                 dbc.Badge("Manager", color="light", text_color="dark", className="me-1 mb-2", pill=True, style={'cursor': 'pointer'}),
                                 dbc.Badge("Developer", color="light", text_color="dark", className="me-1 mb-2", pill=True, style={'cursor': 'pointer'}),
@@ -606,7 +643,7 @@ def create_job_seeker_page():
                 ], className="shadow-sm border-0", 
                    style={'position': 'sticky', 'top': '20px', 'background': 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'}),
                 
-            ], width="auto", className="mb-4", style={"width": "240px", "flexShrink": "0"}),
+            ], width="auto", className="mb-4", style={"width": "260px", "flexShrink": "0"}),
             
             # MAIN CONTENT (Job Cards)
             dbc.Col([
@@ -761,12 +798,12 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
                 dbc.CardBody([
                     # Title
                     html.H5(job['title'], className="mb-2", 
-                           style={'fontWeight': '600', 'color': '#1a202c', 'lineHeight': '1.3'}),
+                           style={'fontWeight': '700', 'color': '#1a202c', 'lineHeight': '1.4', 'fontSize': '1.05rem'}),
                     
                     # Company
                     html.Div([
                         html.I(className="fas fa-building me-2", style={'color': '#667eea'}),
-                        html.Span(job['company'], style={'fontSize': '0.95rem', 'color': '#4a5568', 'fontWeight': '500'})
+                        html.Span(job['company'], style={'fontSize': '1rem', 'color': '#4a5568', 'fontWeight': '600'})
                     ], className="mb-3"),
                     
                     # Badges Row
@@ -775,19 +812,19 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
                             html.I(className="fas fa-briefcase me-1"),
                             job['sector'] if pd.notna(job['sector']) else 'General'
                         ], color="primary", className="me-2 mb-2", pill=True, 
-                           style={'fontSize': '0.75rem', 'padding': '0.4rem 0.8rem'}),
+                           style={'fontSize': '0.82rem', 'padding': '0.45rem 0.9rem'}),
                         
                         dbc.Badge([
                             html.I(className="fas fa-map-marker-alt me-1"),
                             job['district'] if pd.notna(job['district']) else 'Rwanda'
                         ], color="secondary", className="me-2 mb-2", pill=True,
-                           style={'fontSize': '0.75rem', 'padding': '0.4rem 0.8rem'}),
+                           style={'fontSize': '0.82rem', 'padding': '0.45rem 0.9rem'}),
                         
                         dbc.Badge([
                             html.I(className="fas fa-globe me-1"),
                             job['source']
                         ], color="light", text_color="dark", className="me-2 mb-2", pill=True,
-                           style={'fontSize': '0.75rem', 'padding': '0.4rem 0.8rem'}),
+                           style={'fontSize': '0.82rem', 'padding': '0.45rem 0.9rem'}),
                     ], className="mb-3"),
                     
                     # Education & Experience (ALWAYS show, with "Not Specified" if empty)
@@ -857,7 +894,7 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
     # Results text
     results_text = html.Div([
         html.I(className="fas fa-check-circle me-2 text-success"),
-        html.Span(f"Showing {len(cards_list)} active jobs", style={'fontSize': '1.1rem', 'fontWeight': '500'})
+        html.Span(f"Showing {len(cards_list)} active jobs", style={'fontSize': '1.1rem', 'fontWeight': '700', 'color': '#2d3748'})
     ], className="mb-4")
     
     if not cards_list:
