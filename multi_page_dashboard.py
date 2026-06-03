@@ -171,7 +171,7 @@ app.index_string = '''
 
             /* ══ PAGE SHELL ══ */
             #page-content {
-                padding: 1.75rem 3rem 2rem !important;
+                padding: 2rem 3rem !important;
                 width: 100% !important;
                 box-sizing: border-box !important;
             }
@@ -184,6 +184,8 @@ app.index_string = '''
                 letter-spacing: -1.5px;
                 line-height: 1.15 !important;
                 margin-bottom: 0.6rem !important;
+                display: block !important;
+                visibility: visible !important;
             }
             .hero-sub {
                 font-size: 1.15rem !important;
@@ -556,7 +558,7 @@ app.layout = html.Div([
     navbar,
     html.Div(
         id='page-content',
-        style={"width": "100%", "padding": "0", "boxSizing": "border-box"}
+        style={"width": "100%", "boxSizing": "border-box"}
     )
 ], style={"width": "100%", "minHeight": "100vh", "overflowX": "hidden"})
 
@@ -594,7 +596,7 @@ def create_job_seeker_page():
                 f"Browse {total_jobs:,} active opportunities · Updated daily from top Rwanda job boards",
                 className="hero-sub"
             ),
-        ], style={'paddingBottom':'1.25rem','borderBottom':'1px solid #e5e7eb','marginBottom':'1.5rem'}),
+        ], style={'paddingTop':'0.5rem','paddingBottom':'1.5rem','borderBottom':'1px solid #e5e7eb','marginBottom':'1.75rem'}),
 
         # ── STAT CARDS ──
         dbc.Row([
@@ -798,7 +800,7 @@ def create_job_seeker_page():
                    href="https://wa.me/250782765421", target="_blank", className="footer-link"),
         ], className="page-footer"),
 
-    ], style={'width':'100%'})
+    ], style={'width':'100%', 'padding':'2rem 3rem', 'boxSizing':'border-box'})
 
 
 @callback(
@@ -1578,7 +1580,7 @@ def create_market_insights_page():
             ], md=12, className="mb-4"),
         ]),
         
-    ], style={'width': '100%'})
+    ], style={'width':'100%', 'padding':'2rem 3rem', 'boxSizing':'border-box'})
 
 
 # ============================================================================
@@ -1609,7 +1611,7 @@ def create_historical_page():
             html.P("Check back soon for this feature!", className="mb-0"),
         ], color="info"),
         
-    ], style={'width': '100%'})
+    ], style={'width':'100%', 'padding':'2rem 3rem', 'boxSizing':'border-box'})
 
 
 # ============================================================================
