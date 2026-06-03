@@ -803,22 +803,6 @@ def load_more(n_clicks, current_shown):
 
 
 @callback(
-    [Output("job-cards-container", "children"),
-     Output("results-count", "children"),
-     Output("load-more-container", "style"),
-     Output("load-more-label", "children")],
-    [Input("search-input", "value"),
-     Input("sector-dropdown", "value"),
-     Input("district-dropdown", "value"),
-     Input("source-dropdown", "value"),
-     Input("deadline-dropdown", "value"),
-     Input("reset-btn", "n_clicks"),
-     Input("quick-location-filter", "value"),
-     Input("quick-sector-filter", "value"),
-     Input("cards-shown", "data")]
-)
-
-@callback(
     Output("cards-shown", "data", allow_duplicate=True),
     [Input("search-input", "value"),
      Input("sector-dropdown", "value"),
@@ -834,6 +818,21 @@ def reset_cards_on_filter(*args):
     return 9
 
 
+@callback(
+    [Output("job-cards-container", "children"),
+     Output("results-count", "children"),
+     Output("load-more-container", "style"),
+     Output("load-more-label", "children")],
+    [Input("search-input", "value"),
+     Input("sector-dropdown", "value"),
+     Input("district-dropdown", "value"),
+     Input("source-dropdown", "value"),
+     Input("deadline-dropdown", "value"),
+     Input("reset-btn", "n_clicks"),
+     Input("quick-location-filter", "value"),
+     Input("quick-sector-filter", "value"),
+     Input("cards-shown", "data")]
+)
 def update_job_cards(search, sector, district, source, deadline, reset_clicks, quick_locations, quick_sectors, cards_shown):
     if cards_shown is None:
         cards_shown = 9
