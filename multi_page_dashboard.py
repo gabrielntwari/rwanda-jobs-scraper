@@ -550,7 +550,7 @@ navbar = html.Div([
         dcc.Link([html.I(className="fas fa-history me-1"), " Historical"],
                  href="/historical", className="nav-pill", id="nav-historical"),
     ], className="nav-links"),
-], className="top-navbar", style={"width":"100%","boxSizing":"border-box"})
+], className="top-navbar", style={"width":"100%","boxSizing":"border-box","padding":"0 4rem"})
 # App layout
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
@@ -591,10 +591,11 @@ def create_job_seeker_page():
             html.H1([
                 "Find Your Dream Job ",
                 html.Span("in Rwanda", style={'color':'#4f46e5'})
-            ], className="hero-title"),
+            ], style={'fontSize':'3rem','fontWeight':'900','letterSpacing':'-1.5px',
+                      'lineHeight':'1.15','color':'#111827','marginBottom':'0.6rem'}),
             html.P(
                 f"Browse {total_jobs:,} active opportunities · Updated daily from top Rwanda job boards",
-                className="hero-sub"
+                style={'fontSize':'1.15rem','color':'#6b7280','fontWeight':'400','margin':'0'}
             ),
         ], style={'paddingTop':'0.5rem','paddingBottom':'1.5rem','borderBottom':'1px solid #e5e7eb','marginBottom':'1.75rem'}),
 
@@ -603,55 +604,55 @@ def create_job_seeker_page():
             dbc.Col([
                 dbc.Card([dbc.CardBody([
                     html.Div([
-                        html.Div(html.I(className="fas fa-briefcase", style={'fontSize':'1.3rem','color':'#4f46e5'}),
-                            style={'width':'48px','height':'48px','borderRadius':'12px','background':'#eef2ff',
-                                   'display':'flex','alignItems':'center','justifyContent':'center','marginBottom':'1rem'}),
-                        html.Div(f"{total_jobs:,}", className="stat-number"),
-                        html.P("Total Active Jobs", className="stat-label"),
+                        html.Div(html.I(className="fas fa-briefcase", style={'fontSize':'1.6rem','color':'#4f46e5'}),
+                            style={'width':'56px','height':'56px','borderRadius':'14px','background':'#eef2ff',
+                                   'display':'flex','alignItems':'center','justifyContent':'center','marginBottom':'1.25rem'}),
+                        html.Div(f"{total_jobs:,}", style={"fontSize":"3.5rem","fontWeight":"900","letterSpacing":"-2px","lineHeight":"1","color":"#111827"}),
+                        html.P("Total Active Jobs", style={"fontSize":"1.1rem","color":"#6b7280","fontWeight":"500","marginTop":"0.5rem"}),
                     ])
-                ])], className="border-0 stat-card h-100")
+                ])], className="border-0 stat-card h-100", style={'padding':'2rem'})
             ], lg=3, md=6, sm=6, className="mb-3"),
 
             dbc.Col([
                 dbc.Card([dbc.CardBody([
                     html.Div([
-                        html.Div(html.I(className="fas fa-bolt", style={'fontSize':'1.3rem','color':'#db2777'}),
-                            style={'width':'48px','height':'48px','borderRadius':'12px','background':'#fdf2f8',
-                                   'display':'flex','alignItems':'center','justifyContent':'center','marginBottom':'1rem'}),
-                        html.Div(f"{new_jobs_count}", className="stat-number"),
-                        html.P("New (Last 3 Days)", className="stat-label"),
+                        html.Div(html.I(className="fas fa-bolt", style={'fontSize':'1.6rem','color':'#db2777'}),
+                            style={'width':'56px','height':'56px','borderRadius':'14px','background':'#fdf2f8',
+                                   'display':'flex','alignItems':'center','justifyContent':'center','marginBottom':'1.25rem'}),
+                        html.Div(f"{new_jobs_count}", style={"fontSize":"3.5rem","fontWeight":"900","letterSpacing":"-2px","lineHeight":"1","color":"#111827"}),
+                        html.P("New (Last 3 Days)", style={"fontSize":"1.1rem","color":"#6b7280","fontWeight":"500","marginTop":"0.5rem"}),
                     ])
-                ])], className="border-0 stat-card h-100")
+                ])], className="border-0 stat-card h-100", style={'padding':'2rem'})
             ], lg=3, md=6, sm=6, className="mb-3"),
 
             dbc.Col([
                 dbc.Card([dbc.CardBody([
                     html.Div([
-                        html.Div(html.I(className="fas fa-clock", style={'fontSize':'1.3rem','color':'#d97706'}),
-                            style={'width':'48px','height':'48px','borderRadius':'12px','background':'#fffbeb',
-                                   'display':'flex','alignItems':'center','justifyContent':'center','marginBottom':'1rem'}),
-                        html.Div(f"{expiring_soon_count}", className="stat-number"),
-                        html.P("Expiring in 2 Days", className="stat-label"),
+                        html.Div(html.I(className="fas fa-clock", style={'fontSize':'1.6rem','color':'#d97706'}),
+                            style={'width':'56px','height':'56px','borderRadius':'14px','background':'#fffbeb',
+                                   'display':'flex','alignItems':'center','justifyContent':'center','marginBottom':'1.25rem'}),
+                        html.Div(f"{expiring_soon_count}", style={"fontSize":"3.5rem","fontWeight":"900","letterSpacing":"-2px","lineHeight":"1","color":"#111827"}),
+                        html.P("Expiring in 2 Days", style={"fontSize":"1.1rem","color":"#6b7280","fontWeight":"500","marginTop":"0.5rem"}),
                     ])
-                ])], className="border-0 stat-card h-100")
+                ])], className="border-0 stat-card h-100", style={'padding':'2rem'})
             ], lg=3, md=6, sm=6, className="mb-3"),
 
             dbc.Col([
                 dbc.Card([dbc.CardBody([
                     html.Div([
-                        html.Div(html.I(className="fas fa-globe", style={'fontSize':'1.3rem','color':'#0891b2'}),
-                            style={'width':'48px','height':'48px','borderRadius':'12px','background':'#ecfeff',
-                                   'display':'flex','alignItems':'center','justifyContent':'center','marginBottom':'1rem'}),
-                        html.P("Top Sources", className="stat-label", style={'marginTop':'0','marginBottom':'0.6rem','fontSize':'0.78rem','textTransform':'uppercase','letterSpacing':'0.05em','fontWeight':'700'}),
+                        html.Div(html.I(className="fas fa-globe", style={'fontSize':'1.6rem','color':'#0891b2'}),
+                            style={'width':'56px','height':'56px','borderRadius':'14px','background':'#ecfeff',
+                                   'display':'flex','alignItems':'center','justifyContent':'center','marginBottom':'1.25rem'}),
+                        html.P("Top Sources", style={'marginTop':'0','marginBottom':'0.9rem','fontSize':'0.85rem','textTransform':'uppercase','letterSpacing':'0.08em','fontWeight':'800','color':'#9ca3af'}),
                         html.Div([
                             html.Div([
-                                html.Span(source, style={'fontSize':'0.85rem','fontWeight':'600','color':'#374151'}),
-                                html.Span(f"{count}", style={'fontSize':'0.85rem','fontWeight':'700','color':'#4f46e5'}),
+                                html.Span(source, style={'fontSize':'1.05rem','fontWeight':'600','color':'#374151'}),
+                                html.Span(f"{count}", style={'fontSize':'1.05rem','fontWeight':'800','color':'#4f46e5'}),
                             ], style={'display':'flex','justifyContent':'space-between','marginBottom':'0.35rem'})
                             for source, count in jobs_by_source.head(3).items()
                         ])
                     ])
-                ])], className="border-0 stat-card h-100")
+                ])], className="border-0 stat-card h-100", style={'padding':'2rem'})
             ], lg=3, md=6, sm=6, className="mb-3"),
         ], className="mb-3 align-items-stretch g-3", style={'width':'100%','margin':'0 0 1rem 0'}),
 
@@ -800,7 +801,7 @@ def create_job_seeker_page():
                    href="https://wa.me/250782765421", target="_blank", className="footer-link"),
         ], className="page-footer"),
 
-    ], style={'width':'100%', 'padding':'2rem 3rem', 'boxSizing':'border-box'})
+    ], style={'width':'100%', 'padding':'2.5rem 4rem', 'boxSizing':'border-box', 'minHeight':'calc(100vh - 64px)'})
 
 
 @callback(
@@ -973,13 +974,13 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
             dbc.Card([
                 dbc.CardBody([
                     # Title
-                    html.H5(job['title'], className="job-title"),
+                    html.H5(job['title'], style={"fontSize":"1.35rem","fontWeight":"700","color":"#111827","lineHeight":"1.4","marginBottom":"0.4rem"}),
 
                     # Company
                     html.Div([
                         html.I(className="fas fa-building", style={'fontSize':'0.8rem'}),
                         html.Span(job['company'])
-                    ], className="job-company"),
+                    ], style={"fontSize":"1.05rem","color":"#6b7280","fontWeight":"500","marginBottom":"0.9rem","display":"flex","alignItems":"center","gap":"5px"}),
 
                     # Badges
                     html.Div([
@@ -996,8 +997,8 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
 
                     # Meta
                     html.Div([
-                        html.P([html.Strong("Education: "), education_value], className="job-meta"),
-                        html.P([html.Strong("Experience: "), experience_value], className="job-meta"),
+                        html.P([html.Strong("Education: ", style={"fontWeight":"600","color":"#374151"}), html.Span(education_value, style={"color":"#6b7280"})], style={"fontSize":"1.05rem","marginBottom":"0.3rem"}),
+                        html.P([html.Strong("Experience: ", style={"fontWeight":"600","color":"#374151"}), html.Span(experience_value, style={"color":"#6b7280"})], style={"fontSize":"1.05rem","marginBottom":"0.3rem"}),
                     ], style={'marginBottom':'0.75rem'}),
 
                     # Deadline badge
@@ -1012,14 +1013,13 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
                     html.A([
                         html.I(className="fas fa-arrow-up-right-from-square me-2"),
                         "View & Apply"
-                    ], href=job['source_url'], target="_blank", className="apply-btn",
-                       style={'display':'block','textAlign':'center','textDecoration':'none'}),
+                    ], href=job['source_url'], target="_blank", style={'display':'block','textAlign':'center','textDecoration':'none','background':'#111827','color':'white','borderRadius':'10px','fontWeight':'600','fontSize':'1.1rem','padding':'0.8rem 1rem','marginTop':'auto','transition':'background 0.2s'}),
                     html.P([
                         html.I(className="fas fa-calendar me-1"),
                         deadline_text
                     ], className="deadline-line"),
                 ])
-            ], className="job-card border-0 h-100")
+            ], className="job-card border-0 h-100", style={"height":"100%"})
         ], xl=4, lg=6, md=12, className="mb-3")
         
         cards_list.append(card)
@@ -1580,7 +1580,7 @@ def create_market_insights_page():
             ], md=12, className="mb-4"),
         ]),
         
-    ], style={'width':'100%', 'padding':'2rem 3rem', 'boxSizing':'border-box'})
+    ], style={'width':'100%', 'padding':'2.5rem 4rem', 'boxSizing':'border-box', 'minHeight':'calc(100vh - 64px)'})
 
 
 # ============================================================================
@@ -1611,7 +1611,7 @@ def create_historical_page():
             html.P("Check back soon for this feature!", className="mb-0"),
         ], color="info"),
         
-    ], style={'width':'100%', 'padding':'2rem 3rem', 'boxSizing':'border-box'})
+    ], style={'width':'100%', 'padding':'2.5rem 4rem', 'boxSizing':'border-box', 'minHeight':'calc(100vh - 64px)'})
 
 
 # ============================================================================
