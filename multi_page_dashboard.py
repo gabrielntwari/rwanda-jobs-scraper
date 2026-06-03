@@ -120,7 +120,7 @@ app.index_string = '''
             *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
             /* Root scale: 1vw on a 1920px screen = ~19px base */
-            html { font-size: clamp(15px, 1.25vw, 22px); }
+            html { font-size: clamp(16px, 1.4vw, 24px); }
 
             body {
                 background: #f7f8fc;
@@ -206,7 +206,7 @@ app.index_string = '''
             }
             .stat-card .card-body { padding: 1.75rem !important; }
             .stat-number {
-                font-size: 4rem !important;
+                font-size: 3.2rem !important;
                 font-weight: 900 !important;
                 color: #111827 !important;
                 line-height: 1 !important;
@@ -349,21 +349,21 @@ app.index_string = '''
                 transform: translateY(-3px);
             }
             .job-card .card-body {
-                padding: 1.75rem !important;
+                padding: 2.25rem !important;
                 display: flex;
                 flex-direction: column;
                 flex: 1;
                 gap: 0;
             }
             .job-title {
-                font-size: 1.25rem !important;
+                font-size: 1.75rem !important;
                 font-weight: 700 !important;
                 color: #111827 !important;
                 line-height: 1.4 !important;
                 margin-bottom: 0.3rem !important;
             }
             .job-company {
-                font-size: 1rem !important;
+                font-size: 1.3rem !important;
                 color: #6b7280 !important;
                 font-weight: 500 !important;
                 margin-bottom: 0.9rem !important;
@@ -378,9 +378,9 @@ app.index_string = '''
                 margin-bottom: 0.9rem;
             }
             .job-badge {
-                font-size: 0.88rem !important;
+                font-size: 1.05rem !important;
                 font-weight: 600 !important;
-                padding: 0.28em 0.7em !important;
+                padding: 0.38em 0.9em !important;
                 border-radius: 6px !important;
                 border: 1.5px solid;
                 white-space: nowrap;
@@ -392,7 +392,7 @@ app.index_string = '''
             .badge-warning  { background: #fffbeb !important; color: #d97706 !important; border-color: #fde68a !important; }
             .badge-ok       { background: #f0fdf4 !important; color: #16a34a !important; border-color: #bbf7d0 !important; }
             .job-meta {
-                font-size: 1rem !important;
+                font-size: 1.2rem !important;
                 color: #6b7280 !important;
                 margin-bottom: 0.3rem !important;
                 line-height: 1.4;
@@ -405,8 +405,8 @@ app.index_string = '''
                 border-radius: 0.625rem !important;
                 color: white !important;
                 font-weight: 600 !important;
-                font-size: 1.05rem !important;
-                padding: 0.7rem 1rem !important;
+                font-size: 1.25rem !important;
+                padding: 0.9rem 1rem !important;
                 width: 100%;
                 transition: background 0.2s !important;
                 display: block;
@@ -416,7 +416,7 @@ app.index_string = '''
             }
             .apply-btn:hover { background: #4f46e5 !important; color: white !important; }
             .deadline-line {
-                font-size: 0.88rem !important;
+                font-size: 1rem !important;
                 color: #9ca3af !important;
                 text-align: center;
                 margin-top: 0.5rem !important;
