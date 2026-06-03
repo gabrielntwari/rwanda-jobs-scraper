@@ -155,7 +155,7 @@ app.index_string = '''
             .nav-pill {
                 color: rgba(255,255,255,0.65);
                 text-decoration: none;
-                font-size: 0.9rem;
+                font-size: clamp(0.9rem, 1vw, 1rem);
                 font-weight: 500;
                 padding: 0.45rem 1rem;
                 border-radius: 8px;
@@ -170,13 +170,13 @@ app.index_string = '''
             /* ══ PAGE SHELL ══ */
             #page-content {
                 padding: 2.5rem 3rem !important;
-                max-width: 1600px;
-                margin: 0 auto;
+                width: 100% !important;
+                box-sizing: border-box !important;
             }
 
             /* ══ HERO ══ */
             .hero-title {
-                font-size: clamp(2rem, 3.5vw, 3.2rem) !important;
+                font-size: clamp(2.5rem, 4vw, 4rem) !important;
                 font-weight: 900 !important;
                 color: #111827 !important;
                 letter-spacing: -1px;
@@ -184,7 +184,7 @@ app.index_string = '''
                 margin-bottom: 0.6rem !important;
             }
             .hero-sub {
-                font-size: clamp(1rem, 1.5vw, 1.2rem) !important;
+                font-size: clamp(1.05rem, 1.8vw, 1.35rem) !important;
                 color: #6b7280 !important;
                 font-weight: 400 !important;
             }
@@ -204,11 +204,11 @@ app.index_string = '''
             }
             .stat-card .card-body { padding: 1.75rem !important; }
             .stat-number {
-                font-size: clamp(2rem, 3vw, 2.8rem) !important;
+                font-size: clamp(2.4rem, 3.5vw, 3.5rem) !important;
                 font-weight: 900 !important;
                 color: #111827 !important;
                 line-height: 1 !important;
-                letter-spacing: -1px;
+                letter-spacing: -2px;
                 display: block;
             }
             .stat-label {
@@ -269,7 +269,7 @@ app.index_string = '''
                 flex-wrap: wrap;
             }
             .filter-label {
-                font-size: 0.85rem;
+                font-size: clamp(0.85rem, 1vw, 1rem);
                 font-weight: 600;
                 color: #374151;
                 white-space: nowrap;
@@ -350,7 +350,7 @@ app.index_string = '''
                 flex: 1;
             }
             .job-title {
-                font-size: 1.05rem !important;
+                font-size: clamp(1rem, 1.2vw, 1.15rem) !important;
                 font-weight: 700 !important;
                 color: #111827 !important;
                 line-height: 1.4 !important;
@@ -528,7 +528,7 @@ navbar = html.Div([
         dcc.Link([html.I(className="fas fa-history me-1"), " Historical"],
                  href="/historical", className="nav-pill", id="nav-historical"),
     ], className="nav-links"),
-], className="top-navbar")
+], className="top-navbar", style={"width":"100%","boxSizing":"border-box"})
 # App layout
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
@@ -536,9 +536,9 @@ app.layout = html.Div([
     navbar,
     html.Div(
         id='page-content',
-        style={"width": "100%", "padding": "1.5rem 2rem"}
+        style={"width": "100%", "padding": "0", "boxSizing": "border-box"}
     )
-], style={"width": "100%", "minHeight": "100vh"})
+], style={"width": "100%", "minHeight": "100vh", "overflowX": "hidden"})
 
 
 # ============================================================================
@@ -631,7 +631,7 @@ def create_job_seeker_page():
                     ])
                 ])], className="border-0 stat-card h-100")
             ], lg=3, md=6, sm=6, className="mb-3"),
-        ], className="mb-3 align-items-stretch g-3"),
+        ], className="mb-3 align-items-stretch g-3", style={'width':'100%','margin':'0 0 1rem 0'}),
 
         # ── SEARCH BAR ──
         html.Div([
@@ -754,7 +754,7 @@ def create_job_seeker_page():
                     ], className="contact-icons"),
                 ], className="contact-card"),
 
-            ], width="auto", style={"width":"240px","flexShrink":"0"}),
+            ], width="auto", style={"width":"clamp(200px, 16vw, 280px)","flexShrink":"0"}),
 
             # JOB CARDS
             dbc.Col([
@@ -767,7 +767,7 @@ def create_job_seeker_page():
                     ], id="load-more-btn", n_clicks=0, className="load-more-btn")
                 ], id="load-more-container"),
             ], style={"flex":"1","minWidth":"0"}),
-        ], style={'display':'flex','gap':'1.5rem','alignItems':'flex-start'}),
+        ], style={'display':'flex','gap':'1.5rem','alignItems':'flex-start','width':'100%','margin':'0'}),
 
         # ── FOOTER ──
         html.Div([
