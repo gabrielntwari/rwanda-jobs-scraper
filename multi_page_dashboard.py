@@ -171,7 +171,7 @@ app.index_string = '''
 
             /* ══ PAGE SHELL ══ */
             #page-content {
-                padding: 2.5rem 3rem !important;
+                padding: 1.75rem 3rem 2rem !important;
                 width: 100% !important;
                 box-sizing: border-box !important;
             }
@@ -206,7 +206,7 @@ app.index_string = '''
             }
             .stat-card .card-body { padding: 1.75rem !important; }
             .stat-number {
-                font-size: 3rem !important;
+                font-size: 4rem !important;
                 font-weight: 900 !important;
                 color: #111827 !important;
                 line-height: 1 !important;
@@ -215,12 +215,12 @@ app.index_string = '''
                 margin-bottom: 0.4rem;
             }
             .stat-label {
-                font-size: 1.05rem !important;
+                font-size: 1.1rem !important;
                 color: #6b7280 !important;
                 font-weight: 500 !important;
             }
             .stat-icon-box {
-                width: 3rem; height: 3rem;
+                width: 3.25rem; height: 3.25rem;
                 border-radius: 0.75rem;
                 display: flex; align-items: center; justify-content: center;
                 font-size: 1.25rem;
@@ -594,7 +594,7 @@ def create_job_seeker_page():
                 f"Browse {total_jobs:,} active opportunities · Updated daily from top Rwanda job boards",
                 className="hero-sub"
             ),
-        ], style={'paddingBottom':'2rem','borderBottom':'1px solid #e5e7eb','marginBottom':'2rem'}),
+        ], style={'paddingBottom':'1.25rem','borderBottom':'1px solid #e5e7eb','marginBottom':'1.5rem'}),
 
         # ── STAT CARDS ──
         dbc.Row([
@@ -774,7 +774,7 @@ def create_job_seeker_page():
                     ], className="contact-icons"),
                 ], className="contact-card"),
 
-            ], width="auto", style={"width":"clamp(200px, 16vw, 280px)","flexShrink":"0"}),
+            ], width="auto", style={"width":"clamp(220px, 17vw, 300px)","flexShrink":"0"}),
 
             # JOB CARDS
             dbc.Col([
