@@ -378,6 +378,7 @@ navbar = dbc.Navbar(
 # App layout
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
+    dcc.Store(id='cards-shown', data=9),
     navbar,
     html.Div(
         id='page-content',
@@ -670,51 +671,101 @@ def create_job_seeker_page():
                     ])
                 ], className="shadow-sm border-0 mb-3", style={'position': 'sticky', 'top': '20px'}),
                 
-                # Contact Card (Bottom of Sidebar)
+                # Contact Card
                 dbc.Card([
                     dbc.CardBody([
-                        html.H6([
-                            html.I(className="fas fa-address-book me-2 text-primary"),
-                            "Contact"
-                        ], className="mb-3 text-center", style={'fontWeight': '600'}),
-                        
+                        html.P("Get in Touch", style={
+                            'fontWeight': '700', 'fontSize': '0.95rem',
+                            'color': '#4a5568', 'marginBottom': '1rem',
+                            'textAlign': 'center', 'letterSpacing': '0.3px'
+                        }),
                         html.Div([
-                            html.A([
-                                html.I(className="fab fa-whatsapp fa-2x text-success")
-                            ], href="https://wa.me/250782765421", target="_blank", 
-                               className="me-3", 
-                               title="WhatsApp",
-                               style={'textDecoration': 'none'}),
-                            
-                            html.A([
-                                html.I(className="fas fa-envelope fa-2x text-danger")
-                            ], href="mailto:ntwaridigabia@gmail.com", 
-                               className="me-3",
-                               title="Email",
-                               style={'textDecoration': 'none'}),
-                            
-                            html.A([
-                                html.I(className="fab fa-linkedin fa-2x text-primary")
-                            ], href="https://www.linkedin.com/in/gabriel-ntwari/", target="_blank", 
-                               className="me-3",
-                               title="LinkedIn",
-                               style={'textDecoration': 'none'}),
-                            
-                            html.A([
-                                html.I(className="fab fa-x-twitter fa-2x", style={'color': '#000'})
-                            ], href="https://x.com/ntwari_gabriel", target="_blank",
-                               title="Twitter/X",
-                               style={'textDecoration': 'none'}),
-                        ], className="d-flex justify-content-center")
-                    ])
-                ], className="shadow-sm border-0", 
-                   style={'position': 'sticky', 'top': '20px', 'background': 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'}),
+                            # WhatsApp
+                            html.A(
+                                html.Div([
+                                    html.I(className="fab fa-whatsapp", style={'fontSize': '1.3rem'}),
+                                ], style={
+                                    'width': '44px', 'height': '44px', 'borderRadius': '12px',
+                                    'background': '#25D366', 'color': 'white',
+                                    'display': 'flex', 'alignItems': 'center', 'justifyContent': 'center'
+                                }),
+                                href="https://wa.me/250782765421", target="_blank",
+                                title="WhatsApp", style={'textDecoration': 'none'}
+                            ),
+                            # Email
+                            html.A(
+                                html.Div([
+                                    html.I(className="fas fa-envelope", style={'fontSize': '1.2rem'}),
+                                ], style={
+                                    'width': '44px', 'height': '44px', 'borderRadius': '12px',
+                                    'background': '#EA4335', 'color': 'white',
+                                    'display': 'flex', 'alignItems': 'center', 'justifyContent': 'center'
+                                }),
+                                href="mailto:ntwaridigabia@gmail.com",
+                                title="Email", style={'textDecoration': 'none'}
+                            ),
+                            # LinkedIn
+                            html.A(
+                                html.Div([
+                                    html.I(className="fab fa-linkedin-in", style={'fontSize': '1.2rem'}),
+                                ], style={
+                                    'width': '44px', 'height': '44px', 'borderRadius': '12px',
+                                    'background': '#0077B5', 'color': 'white',
+                                    'display': 'flex', 'alignItems': 'center', 'justifyContent': 'center'
+                                }),
+                                href="https://www.linkedin.com/in/gabriel-ntwari/", target="_blank",
+                                title="LinkedIn", style={'textDecoration': 'none'}
+                            ),
+                            # Twitter/X
+                            html.A(
+                                html.Div([
+                                    html.I(className="fab fa-x-twitter", style={'fontSize': '1.2rem'}),
+                                ], style={
+                                    'width': '44px', 'height': '44px', 'borderRadius': '12px',
+                                    'background': '#000', 'color': 'white',
+                                    'display': 'flex', 'alignItems': 'center', 'justifyContent': 'center'
+                                }),
+                                href="https://x.com/ntwari_gabriel", target="_blank",
+                                title="Twitter/X", style={'textDecoration': 'none'}
+                            ),
+                        ], style={
+                            'display': 'flex', 'justifyContent': 'space-between',
+                            'alignItems': 'center', 'gap': '8px'
+                        })
+                    ], style={'padding': '1.25rem 1rem'})
+                ], className="shadow-sm border-0", style={
+                    'borderRadius': '14px',
+                    'background': 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf8 100%)',
+                    'marginTop': '1rem'
+                }),
                 
             ], width="auto", className="mb-4", style={"width": "260px", "flexShrink": "0"}),
             
             # MAIN CONTENT (Job Cards)
             dbc.Col([
                 html.Div(id="job-cards-container"),
+                # Load More Button
+                html.Div([
+                    dbc.Button([
+                        html.I(className="fas fa-chevron-down me-2"),
+                        html.Span(id="load-more-label", children="Load More Jobs")
+                    ],
+                    id="load-more-btn",
+                    n_clicks=0,
+                    className="w-100",
+                    style={
+                        'background': 'linear-gradient(135deg,#667eea,#764ba2)',
+                        'border': 'none',
+                        'borderRadius': '12px',
+                        'fontWeight': '600',
+                        'fontSize': '1rem',
+                        'padding': '0.85rem',
+                        'color': 'white',
+                        'cursor': 'pointer',
+                        'marginTop': '0.5rem',
+                        'transition': 'opacity 0.2s'
+                    })
+                ], id="load-more-container"),
             ], className="mb-4", style={"flex": "1", "minWidth": "0"}),
         ]),
         
@@ -740,8 +791,22 @@ def create_job_seeker_page():
 
 
 @callback(
+    Output("cards-shown", "data"),
+    Input("load-more-btn", "n_clicks"),
+    State("cards-shown", "data"),
+    prevent_initial_call=True
+)
+def load_more(n_clicks, current_shown):
+    if n_clicks:
+        return current_shown + 9
+    return current_shown
+
+
+@callback(
     [Output("job-cards-container", "children"),
-     Output("results-count", "children")],
+     Output("results-count", "children"),
+     Output("load-more-container", "style"),
+     Output("load-more-label", "children")],
     [Input("search-input", "value"),
      Input("sector-dropdown", "value"),
      Input("district-dropdown", "value"),
@@ -749,9 +814,29 @@ def create_job_seeker_page():
      Input("deadline-dropdown", "value"),
      Input("reset-btn", "n_clicks"),
      Input("quick-location-filter", "value"),
-     Input("quick-sector-filter", "value")]
+     Input("quick-sector-filter", "value"),
+     Input("cards-shown", "data")]
 )
-def update_job_cards(search, sector, district, source, deadline, reset_clicks, quick_locations, quick_sectors):
+
+@callback(
+    Output("cards-shown", "data", allow_duplicate=True),
+    [Input("search-input", "value"),
+     Input("sector-dropdown", "value"),
+     Input("district-dropdown", "value"),
+     Input("source-dropdown", "value"),
+     Input("deadline-dropdown", "value"),
+     Input("reset-btn", "n_clicks"),
+     Input("quick-location-filter", "value"),
+     Input("quick-sector-filter", "value")],
+    prevent_initial_call=True
+)
+def reset_cards_on_filter(*args):
+    return 9
+
+
+def update_job_cards(search, sector, district, source, deadline, reset_clicks, quick_locations, quick_sectors, cards_shown):
+    if cards_shown is None:
+        cards_shown = 9
     df = get_jobs_data()  # uses 5-min cache
     # Reset filters if button clicked
     ctx = dash.callback_context
@@ -797,7 +882,8 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
     # Create job cards in PARALLEL layout (2 columns)
     cards_list = []
     
-    for idx, job in filtered_df.head(100).iterrows():
+    total_filtered = len(filtered_df)
+    for idx, job in filtered_df.head(cards_shown).iterrows():
         # Deadline badge with hours/minutes for urgent jobs
         deadline_badge = None
         deadline_text = ""
@@ -974,9 +1060,19 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
         ], html.Div([
             html.I(className="fas fa-times-circle me-2 text-warning"),
             html.Span("0 active jobs found", style={'fontSize': '1.1rem'})
-        ])
+        ]), {'display': 'none'}, "Load More Jobs"
     
-    return cards_row, results_text
+    shown = min(cards_shown, total_filtered)
+    remaining = total_filtered - shown
+    btn_label = f"Load More ({remaining} remaining)" if remaining > 0 else "All jobs loaded"
+    btn_style = {
+        'background': 'linear-gradient(135deg,#667eea,#764ba2)',
+        'border': 'none', 'borderRadius': '12px', 'fontWeight': '600',
+        'fontSize': '1rem', 'padding': '0.85rem', 'color': 'white',
+        'cursor': 'pointer', 'marginTop': '0.5rem', 'transition': 'opacity 0.2s',
+        'width': '100%', 'display': 'block' if remaining > 0 else 'none'
+    }
+    return cards_row, results_text, btn_style, btn_label
 
 
 # ============================================================================
