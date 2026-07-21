@@ -810,8 +810,7 @@ def create_job_seeker_page():
                 html.Span("in Rwanda", className="accent"),
             ], className="hero-title"),
             html.P(
-                f"Live openings from {max(n_sources, 1)} Rwandan job boards in one place — "
-                "refreshed every morning at 6 AM, duplicates removed.",
+                f"Live openings from {max(n_sources, 1)} Rwandan job boards in one place",
                 className="hero-sub"
             ),
 
