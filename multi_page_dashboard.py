@@ -17,7 +17,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import dash
-from dash import dcc, html, Input, Output, State, dash_table, callback
+from dash import dcc, html, Input, Output, State, dash_table, callback, ALL
+from dash.exceptions import PreventUpdate
+import json
 import dash_bootstrap_components as dbc
 from sqlalchemy import create_engine
 from functools import lru_cache
@@ -127,7 +129,8 @@ app = dash.Dash(__name__, external_stylesheets=[
     dbc.themes.BOOTSTRAP,
     "https://use.fontawesome.com/releases/v6.1.1/css/all.css",
 ], suppress_callback_exceptions=True,
-   meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}])
+   meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"},
+              {"name": "theme-color", "content": "#0A3D2C"}])
 app.title = "Rwanda Jobs Portal"
 server = app.server  # Required for Gunicorn: gunicorn multi_page_dashboard:server
 
@@ -164,7 +167,9 @@ app.index_string = '''
             }
 
             *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-            html { font-size: 16px; }
+            /* Fluid type: 15px on small phones -> 16px at 1200px -> 18px at 1920px -> caps at 20px.
+               Everything is sized in rem, so the whole UI scales with this one rule. */
+            html { font-size: clamp(15px, 12.7px + 0.28vw, 20px); }
             body {
                 background: var(--paper);
                 font-family: var(--body);
@@ -240,7 +245,7 @@ app.index_string = '''
             /* ══ PAGE SHELL ══ */
             .page-wrap {
                 width: 100%;
-                max-width: 1440px;
+                max-width: 1720px;
                 margin: 0 auto;
                 padding: clamp(1.25rem, 3vw, 2.5rem) var(--pad-x) 0;
                 min-height: calc(100vh - 72px);
@@ -528,6 +533,8 @@ app.index_string = '''
             .chip-ok      { background: var(--green-tint); color: var(--green); }
             .chip-none    { background: #EEF0EA; color: var(--muted); }
             .chip-urgent .fa-circle, .pulse { animation: pulse 1.5s infinite; }
+            .chips-top { display: flex; flex-wrap: wrap; gap: 6px; }
+            .chip-new { background: var(--sun); color: var(--green-deep); }
 
             .job-title {
                 font-family: var(--display);
@@ -711,6 +718,13 @@ app.index_string = '''
             }
 
             /* ══ RESPONSIVE ══ */
+            @media (min-width: 1600px) {
+                :root { --pad-x: clamp(2rem, 4vw, 5rem); }
+                .side-col { width: clamp(260px, 16vw, 330px); }
+                .search-hero { max-width: 860px; }
+                .hero-sub { font-size: 1.1rem; }
+                .main-split { gap: 2rem; }
+            }
             @media (max-width: 991px) {
                 .main-split { flex-direction: column; }
                 .side-col { width: 100%; order: 2; }
@@ -810,7 +824,8 @@ def create_job_seeker_page():
                 html.Span("in Rwanda", className="accent"),
             ], className="hero-title"),
             html.P(
-                f"Live openings from {max(n_sources, 1)} Rwandan job boards in one place",
+                f"Live openings from {max(n_sources, 1)} Rwandan job boards in one place — "
+                "refreshed every morning at 6 AM, duplicates removed.",
                 className="hero-sub"
             ),
 
@@ -820,6 +835,7 @@ def create_job_seeker_page():
                 dbc.Input(
                     id="search-input",
                     type="text",
+                    debounce=True,
                     placeholder="Job title, company, or keyword…",
                 ),
                 dbc.Button([html.I(className="fas fa-search me-md-2"),
@@ -882,6 +898,14 @@ def create_job_seeker_page():
                     ],
                     value='all', clearable=False),
             ]),
+            html.Div([
+                dcc.Dropdown(id='sort-dropdown',
+                    options=[
+                        {'label': 'Sort: closing soon', 'value': 'deadline'},
+                        {'label': 'Sort: newest first', 'value': 'newest'},
+                    ],
+                    value='deadline', clearable=False),
+            ]),
             dbc.Button([html.I(className="fas fa-rotate-left me-1"), " Reset"],
                        id="reset-btn", n_clicks=0),
         ], className="filter-row"),
@@ -891,7 +915,8 @@ def create_job_seeker_page():
             # RESULTS
             html.Div([
                 html.Div(id="results-count"),
-                html.Div(id="job-cards-container"),
+                dcc.Loading(html.Div(id="job-cards-container"),
+                            type="circle", color=GREEN, delay_show=250),
                 html.Div([
                     dbc.Button([
                         html.I(className="fas fa-chevron-down me-2"),
@@ -929,11 +954,9 @@ def create_job_seeker_page():
                     ),
                     html.P("Trending", className="sidebar-section-title"),
                     html.Div([
-                        html.Span("Manager", className="trend-badge"),
-                        html.Span("Developer", className="trend-badge"),
-                        html.Span("Officer", className="trend-badge"),
-                        html.Span("Nurse", className="trend-badge"),
-                        html.Span("Driver", className="trend-badge"),
+                        html.Span(term, className="trend-badge", n_clicks=0,
+                                  id={'type': 'trend-badge', 'term': term})
+                        for term in ["Manager", "Developer", "Officer", "Nurse", "Driver"]
                     ]),
                 ], className="sidebar-panel"),
 
@@ -983,13 +1006,28 @@ def load_more(n_clicks, current_shown):
      Input("district-dropdown", "value"),
      Input("source-dropdown", "value"),
      Input("deadline-dropdown", "value"),
+     Input("sort-dropdown", "value"),
      Input("reset-btn", "n_clicks"),
+     Input("search-btn-vis", "n_clicks"),
      Input("quick-location-filter", "value"),
      Input("quick-sector-filter", "value")],
     prevent_initial_call=True
 )
 def reset_cards_on_filter(*args):
     return 9
+
+
+@callback(
+    Output("search-input", "value"),
+    Input({'type': 'trend-badge', 'term': ALL}, 'n_clicks'),
+    prevent_initial_call=True
+)
+def trend_to_search(clicks):
+    ctx = dash.callback_context
+    if not ctx.triggered or not any(c for c in clicks if c):
+        raise PreventUpdate
+    triggered_id = json.loads(ctx.triggered[0]['prop_id'].rsplit('.', 1)[0])
+    return triggered_id['term']
 
 
 def _deadline_presentation(job):
@@ -1030,6 +1068,22 @@ def _deadline_presentation(job):
     return chip, "No deadline specified"
 
 
+def _job_badges(job):
+    """Location / sector / source pills — skip anything empty instead of showing blank chips."""
+    def has(v):
+        return pd.notna(v) and str(v).strip() != '' and str(v).strip().upper() != 'EMPTY'
+    badges = []
+    district = job['district'] if has(job['district']) else 'Rwanda'
+    badges.append(html.Span([html.I(className="fas fa-map-marker-alt"), district],
+                            className="job-badge badge-location"))
+    if has(job['sector']):
+        badges.append(html.Span([html.I(className="fas fa-tag"), job['sector']],
+                                className="job-badge badge-sector"))
+    if has(job['source']):
+        badges.append(html.Span(job['source'], className="job-badge badge-source"))
+    return badges
+
+
 @callback(
     [Output("job-cards-container", "children"),
      Output("results-count", "children"),
@@ -1040,12 +1094,14 @@ def _deadline_presentation(job):
      Input("district-dropdown", "value"),
      Input("source-dropdown", "value"),
      Input("deadline-dropdown", "value"),
+     Input("sort-dropdown", "value"),
      Input("reset-btn", "n_clicks"),
+     Input("search-btn-vis", "n_clicks"),
      Input("quick-location-filter", "value"),
      Input("quick-sector-filter", "value"),
      Input("cards-shown", "data")]
 )
-def update_job_cards(search, sector, district, source, deadline, reset_clicks, quick_locations, quick_sectors, cards_shown):
+def update_job_cards(search, sector, district, source, deadline, sort_by, reset_clicks, search_clicks, quick_locations, quick_sectors, cards_shown):
     if cards_shown is None:
         cards_shown = 9
     df = get_jobs_data()
@@ -1087,6 +1143,12 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
             sector_mask = filtered_df['sector'].str.contains('|'.join(quick_sectors), case=False, na=False)
             filtered_df = filtered_df[sector_mask]
 
+    # Sort: most urgent deadlines first (default), or newest scrapes first
+    if sort_by == 'newest':
+        filtered_df = filtered_df.sort_values('scraped_at', ascending=False)
+    else:
+        filtered_df = filtered_df.sort_values('time_to_deadline', ascending=True, na_position='last')
+
     cards_list = []
     total_filtered = len(filtered_df)
 
@@ -1103,24 +1165,23 @@ def update_job_cards(search, sector, district, source, deadline, reset_clicks, q
                                                                    str(job['experience_years']).strip() != '')
                             else 'Not specified')
 
+        is_new = pd.notna(job['scraped_at']) and \
+                 (pd.Timestamp.now() - job['scraped_at']).total_seconds() < 48 * 3600
+        top_chips = [chip]
+        if is_new:
+            top_chips.append(html.Span([html.I(className="fas fa-bolt me-1"), "New"],
+                                       className="deadline-chip chip-new"))
+
         card = dbc.Col([
             dbc.Card([
                 dbc.CardBody([
-                    chip,
+                    html.Div(top_chips, className="chips-top"),
                     html.H5(job['title'], className="job-title"),
                     html.Div([
                         html.I(className="fas fa-building", style={'fontSize': '0.8rem'}),
                         html.Span(job['company'])
                     ], className="job-company"),
-                    html.Div([
-                        html.Span([html.I(className="fas fa-map-marker-alt"),
-                                   job['district'] if pd.notna(job['district']) else 'Rwanda'],
-                                  className="job-badge badge-location"),
-                        html.Span([html.I(className="fas fa-tag"),
-                                   job['sector'] if pd.notna(job['sector']) else 'General'],
-                                  className="job-badge badge-sector"),
-                        html.Span(job['source'], className="job-badge badge-source"),
-                    ], className="badges-row"),
+                    html.Div(_job_badges(job), className="badges-row"),
                     html.Div([
                         html.Div([html.Strong("Education: "), education_value]),
                         html.Div([html.Strong("Experience: "), experience_value]),
