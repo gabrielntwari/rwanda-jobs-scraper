@@ -1,57 +1,69 @@
 """
-Job Scraper for www.greatrwandajobs.com
+Job Scraper for jobs.newtimes.co.rw
 ----------------------------------------------------------
 
-Site facts (confirmed from live fetch):
-  Total jobs : 36,172
-  No Cloudflare - plain requests works
-  CMS        : Joomla + JsJobs component
+WHY 403?
+  The site is behind Cloudflare bot protection. It requires JavaScript
+  execution to set a `cf_clearance` cookie before allowing scraping.
 
-Listing URL pattern  (20 cards per page, Joomla offset):
-  /jobs/?start=0   /jobs/?start=20   /jobs/?start=40  ...
+SOLUTION - install cloudscraper (handles Cloudflare automatically):
+  pip install cloudscraper
 
-Job detail URL:
-  /jobs/job-detail/job-{slug}-{id}
+  cloudscraper is a drop-in replacement for requests.Session().
+  It solves Cloudflare JS challenges transparently.
 
-Card text structure:
-  <a href="/jobs/job-detail/job-...">Title</a>
-  Company from <img alt="Company Name">  or company <a>
-  "Job Category: ..."
-  "Posted: Today"  /  "Posted: X Days Ago"
-  "Deadline of this Job: 08th March 2026"
-  "Duty Station: Kigali | Kigali | Rwanda"
+FALLBACK (if cloudscraper also gets blocked):
+  Use Selenium or Playwright to get the cf_clearance cookie once,
+  then pass it to requests. See get_cf_cookie() at the bottom.
+
+Site structure (confirmed):
+  Listing: /jobs/search?page=N          (jobs)
+  Tenders: /jobs/search/tenders?page=N  (tenders)
+  Job URL: /jobs/{id}-{slug}
+  Each card: "Title * Company | Published on DD-MM-YYYY | Deadline DD-MM-YYYY"
 """
 
 import re, time, hashlib, logging, random
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, timezone
 from typing import List, Dict, Optional, Any, Set
 from urllib.parse import urlparse
 
-import requests
+# -- Try cloudscraper first, fall back to requests ---------------------
+try:
+    import cloudscraper
+    HAS_CLOUDSCRAPER = True
+except ImportError:
+    HAS_CLOUDSCRAPER = False
+    import requests
+    from requests.adapters import HTTPAdapter
+    from requests.packages.urllib3.util.retry import Retry
+
 from bs4 import BeautifulSoup
 import pandas as pd
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from schema import enforce
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.FileHandler("greatrwandajobs_scraper.log"), logging.StreamHandler()],
+    handlers=[logging.FileHandler("newtimes_scraper.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
-BASE_URL  = "https://www.greatrwandajobs.com"
-LIST_URL  = f"{BASE_URL}/jobs/"
-PAGE_SIZE = 50
+BASE_URL = "https://jobs.newtimes.co.rw"
+
+SEARCH_ENDPOINTS = [
+    f"{BASE_URL}/jobs/search",
+    f"{BASE_URL}/jobs/search/tenders",
+]
+
+# -- Lookup tables -----------------------------------------------------
 
 RWANDA_DISTRICTS = [
     "kigali","gasabo","kicukiro","nyarugenge","musanze","rubavu","rusizi",
     "huye","rwamagana","muhanga","karongi","nyamasheke","nyagatare","gatsibo",
     "kayonza","kirehe","ngoma","bugesera","nyanza","gisagara","nyaruguru",
     "ruhango","kamonyi","gakenke","rulindo","gicumbi","burera","ngororero",
-    "nyabihu","rutsiro","kibagabaga","remera","kimironko","gikondo",
+    "nyabihu","rutsiro",
 ]
 
 SECTOR_KEYWORDS = {
@@ -77,8 +89,7 @@ SECTOR_KEYWORDS = {
     "NGO": ["ngo","ingo","unicef","undp","usaid","world bank","oxfam","save the children",
             "care international","irc","mercy corps","msf","humanitarian","monitoring and evaluation"],
     "Tender": ["tender","supply of","provision of","request for proposal","expression of interest",
-               "eoi","rfp","rfq","bid","framework contract","notice for supply","notice for provision",
-               "terms of reference","tor","consultancy services"],
+               "eoi","rfp","rfq","bid","addendum","consultancy services","framework contract"],
     "IT": ["software engineer","software developer","web developer","mobile developer",
            "frontend developer","backend developer","fullstack developer","data engineer",
            "data scientist","machine learning","devops engineer","cloud engineer",
@@ -119,13 +130,26 @@ CURRENCY_SYMBOLS = {
     "EUR": ["eur","euros"],
 }
 
-MONTH_MAP = {
-    "january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
-    "july":7,"august":8,"september":9,"october":10,"november":11,"december":12,
-    "jan":1,"feb":2,"mar":3,"apr":4,"jun":6,"jul":7,"aug":8,
-    "sep":9,"oct":10,"nov":11,"dec":12,
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection":      "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest":  "document",
+    "Sec-Fetch-Mode":  "navigate",
+    "Sec-Fetch-Site":  "none",
+    "Sec-Fetch-User":  "?1",
+    "Cache-Control":   "max-age=0",
 }
 
+
+# -- Helpers -----------------------------------------------------------
 
 def clean(t):
     return " ".join(t.split()).strip() if t else None
@@ -153,7 +177,7 @@ def extract_exp(text):
     if not text: return ""
     t = text.lower()
     if re.search(r"no\s+(prior\s+)?experience", t): return "0"
-    m = re.search(r"(\d+)\s*(?:to|-|-)\s*(\d+)\s*(?:years?|yrs?)", t)
+    m = re.search(r"(\d+)\s*(?:to|-|-|-)\s*(\d+)\s*(?:years?|yrs?)", t)
     if m: return f"{m.group(1)}-{m.group(2)}"
     m = re.search(r"(\d+)\s*\+\s*(?:years?|yrs?)", t)
     if m: return f"{m.group(1)}+"
@@ -164,7 +188,7 @@ def extract_exp(text):
     return ""
 
 def extract_salary(text):
-    r = {"salary_min":"","salary_max":"","currency":"","salary_disclosed":False}
+    r = {"salary_min": "", "salary_max": "", "currency": "", "salary_disclosed": False}
     if not text: return r
     t = text.lower()
     for cur, syms in CURRENCY_SYMBOLS.items():
@@ -179,8 +203,8 @@ def extract_salary(text):
     return r
 
 def infer_location(text):
-    loc = {"location_raw":clean(text) or "","district":"","country":"Rwanda",
-           "is_remote":False,"is_hybrid":False}
+    loc = {"location_raw": clean(text) or "", "district": "", "country": "Rwanda",
+           "is_remote": False, "is_hybrid": False}
     if not text: return loc
     t = text.lower()
     if "remote" in t: loc["is_remote"] = True
@@ -200,98 +224,187 @@ def infer_eligibility(job):
     for s in ["rwanda","kigali","rwandan"]:
         if s in text:
             return {"rwanda_eligible":True,"eligibility_reason":"Explicitly mentions Rwanda","confidence_score":5}
-    return {"rwanda_eligible":True,"eligibility_reason":"Listed on greatrwandajobs.com","confidence_score":3}
+    return {"rwanda_eligible":True,"eligibility_reason":"Listed on jobs.newtimes.co.rw","confidence_score":3}
 
-def relative_to_date(text: str) -> str:
-    """Convert 'Today', '1 Day Ago', '3 Days Ago' to YYYY-MM-DD."""
-    if not text: return ""
-    t = text.strip().lower()
-    today = date.today()
-    if "today" in t: return today.isoformat()
-    m = re.search(r"(\d+)\s+day", t)
-    if m: return (today - timedelta(days=int(m.group(1)))).isoformat()
-    return text.strip()
-
-def parse_deadline(text: str) -> str:
-    """
-    Normalise many deadline formats to YYYY-MM-DD.
-    Falls back to returning the original text so no data is lost.
-    Formats seen on site:
-      08th March 2026
-      10/03/2026
-      28/02/2026
-      19.03.2026 at 2:30 PM
-      Thursday, March 12, 2026
-      March 3, 2026, at 5:00 PM
-    """
-    if not text: return ""
-    t = text.strip()
-
-    # DD/MM/YYYY or DD.MM.YYYY
-    m = re.search(r"(\d{1,2})[/\.](\d{1,2})[/\.](\d{4})", t)
+def parse_date_dmy(date_str):
+    """Convert DD-MM-YYYY to YYYY-MM-DD."""
+    if not date_str: return ""
+    m = re.match(r"(\d{1,2})-(\d{1,2})-(\d{4})", date_str.strip())
     if m:
         try: return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)}"
         except: pass
+    return date_str
 
-    # Month name variants
-    tl = t.lower()
-    for mname, mnum in MONTH_MAP.items():
-        if mname in tl:
-            day_m  = re.search(r"(\d{1,2})(?:st|nd|rd|th)?", t)
-            year_m = re.search(r"(\d{4})", t)
-            if day_m and year_m:
-                try: return f"{year_m.group(1)}-{str(mnum).zfill(2)}-{day_m.group(1).zfill(2)}"
-                except: pass
-            break
+def extract_dates(text):
+    result = {"posted_date": "", "deadline": ""}
+    if not text: return result
+    pub = re.search(r"published\s+on\s+(\d{1,2}-\d{1,2}-\d{4})", text, re.IGNORECASE)
+    if pub: result["posted_date"] = parse_date_dmy(pub.group(1))
+    dl = re.search(r"deadline\s+(\d{1,2}-\d{1,2}-\d{4})", text, re.IGNORECASE)
+    if dl: result["deadline"] = parse_date_dmy(dl.group(1))
+    return result
 
-    return t  # return as-is rather than lose the information
-
-def extract_job_id(url: str) -> str:
-    m = re.search(r"-(\d+)$", urlparse(url).path.rstrip("/"))
-    return m.group(1) if m else urlparse(url).path.strip("/").split("/")[-1][:80]
+def extract_id(url):
+    slug = urlparse(url).path.strip("/").split("/")[-1]
+    m = re.match(r"^(\d+)", slug)
+    return m.group(1) if m else slug[:80]
 
 
-class GreatRwandaJobsScraper:
-    SOURCE = "greatrwandajobs"
+# -- Session builder ---------------------------------------------------
 
-    def __init__(self, delay=0.4, timeout=20, workers=10, max_pages=None):
+def get_cf_cookie_via_selenium(url=BASE_URL, wait_seconds=10) -> str:
+    """
+    Use a real (headless) Chrome browser to solve the Cloudflare JS challenge
+    and extract the resulting cf_clearance cookie, so the automated pipeline
+    doesn't need a human to paste one in from DevTools every time.
+
+    Uses --headless=new (not the old --headless flag): the legacy headless
+    mode is missing browser features Cloudflare's bot detection checks for,
+    while the new mode is close enough to a real browser to usually pass.
+    Same webdriver_manager fallback pattern already proven to work on this
+    project's GitHub Actions runner (see mifotra_scraper.py).
+    """
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        from selenium.common.exceptions import TimeoutException
+        import time as t
+
+        opts = Options()
+        opts.add_argument("--headless=new")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--window-size=1400,2400")
+        opts.add_argument("--disable-blink-features=AutomationControlled")
+        opts.add_experimental_option("excludeSwitches", ["enable-automation"])
+        opts.add_argument(f"user-agent={BROWSER_HEADERS.get('User-Agent', '')}")
+
+        try:
+            from webdriver_manager.chrome import ChromeDriverManager
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=opts)
+        except Exception:
+            driver = webdriver.Chrome(options=opts)  # fall back to system chromedriver
+
+        # HARD CAP on page load: a site that actively detects and blocks
+        # headless browsers (like this one) may never fire "page load
+        # complete" for a challenge page — without this, driver.get() can
+        # hang indefinitely and stall the whole pipeline. 20s is generous
+        # for a page that should normally resolve in a few seconds.
+        driver.set_page_load_timeout(20)
+
+        cf_cookie = ""
+        try:
+            driver.get(url)
+            t.sleep(wait_seconds)  # let the CF challenge finish resolving
+        except TimeoutException:
+            logger.warning(f"Page load exceeded 20s timeout — challenge likely stuck; "
+                            f"grabbing whatever cookies were set so far")
+            try:
+                driver.execute_script("window.stop();")
+            except Exception:
+                pass
+        finally:
+            try:
+                for cookie in driver.get_cookies():
+                    if cookie["name"] == "cf_clearance":
+                        cf_cookie = cookie["value"]
+                        break
+            except Exception:
+                pass
+            driver.quit()
+
+        if cf_cookie:
+            logger.info("Obtained fresh cf_clearance cookie via headless Chrome")
+        else:
+            logger.warning("Headless Chrome did not receive a cf_clearance cookie "
+                            "(site likely detected the automated browser and blocked "
+                            "the challenge from resolving)")
+        return cf_cookie
+    except Exception as e:
+        logger.warning(f"Selenium cf_clearance fetch failed: {e}")
+        return ""
+
+
+def build_session(cf_cookie: str = "", auto_fetch_cookie: bool = True):
+    """
+    Build a session that can bypass Cloudflare.
+
+    Priority:
+      1. cf_clearance cookie (auto-fetched via headless Chrome, or passed in
+         manually) applied on top of cloudscraper                <- most robust
+      2. cloudscraper alone  (pip install cloudscraper)
+      3. requests with cf_clearance cookie
+      4. plain requests                              <- will 403 on Cloudflare sites
+
+    cloudscraper alone solves the older Cloudflare "I'm Under Attack Mode"
+    JS challenge, but this site has been observed returning 403 even with
+    cloudscraper active — a sign it now uses a Managed Challenge that needs
+    an actual browser to solve. auto_fetch_cookie=True (default) runs a
+    real headless Chrome once per scrape to get a fresh cf_clearance token.
+    """
+    if not cf_cookie and auto_fetch_cookie:
+        cf_cookie = get_cf_cookie_via_selenium(BASE_URL)
+
+    if HAS_CLOUDSCRAPER:
+        logger.info("Using cloudscraper (Cloudflare bypass enabled)")
+        scraper = cloudscraper.create_scraper(
+            browser={"browser": "chrome", "platform": "windows", "mobile": False}
+        )
+        scraper.headers.update(BROWSER_HEADERS)
+        if cf_cookie:
+            logger.info("Layering a fresh cf_clearance cookie onto cloudscraper's session")
+            scraper.cookies.set("cf_clearance", cf_cookie, domain="jobs.newtimes.co.rw")
+        return scraper
+
+    # Fallback: requests with optional cf_clearance cookie
+    logger.warning(
+        "cloudscraper not installed - falling back to requests.\n"
+        "  Install it: pip install cloudscraper\n"
+        "  Or manually set cf_cookie from browser DevTools."
+    )
+    import requests
+    from requests.adapters import HTTPAdapter
+    from requests.packages.urllib3.util.retry import Retry
+
+    session = requests.Session()
+    retry = Retry(total=3, backoff_factor=1,
+                  status_forcelist=[429,500,502,503,504],
+                  allowed_methods=["GET"])
+    session.mount("http://", HTTPAdapter(max_retries=retry))
+    session.mount("https://", HTTPAdapter(max_retries=retry))
+    session.headers.update(BROWSER_HEADERS)
+
+    if cf_cookie:
+        logger.info("Using manual cf_clearance cookie")
+        session.cookies.set("cf_clearance", cf_cookie, domain="jobs.newtimes.co.rw")
+
+    return session
+
+
+# -- Scraper -----------------------------------------------------------
+
+class NewTimesScraper:
+    SOURCE = "newtimes"
+
+    def __init__(self, delay=0.5, timeout=20, workers=8, cf_cookie=""):
         """
         Args:
             delay:     Seconds between requests.
             timeout:   HTTP timeout.
-            workers:   Concurrent threads for detail fetches.
-            max_pages: Cap on listing pages (None = all ~1800 pages for 36k jobs).
-                       Set to 50 for a quick test (~1000 recent jobs).
+            workers:   Concurrent threads for detail fetching.
+            cf_cookie: Optional cf_clearance cookie value from browser DevTools.
+                       Only needed if cloudscraper is not installed.
         """
-        self.delay     = delay
-        self.timeout   = timeout
-        self.workers   = workers
-        self.max_pages = max_pages
-        self.session   = self._build_session()
-
-    def _build_session(self):
-        s = requests.Session()
-        retry = Retry(total=4, backoff_factor=1,
-                      status_forcelist=[429,500,502,503,504],
-                      allowed_methods=["GET"])
-        adp = HTTPAdapter(max_retries=retry)
-        s.mount("http://", adp); s.mount("https://", adp)
-        s.headers.update({
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/122.0.0.0 Safari/537.36"
-            ),
-            "Accept":          "text/html,application/xhtml+xml,*/*;q=0.9",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection":      "keep-alive",
-            "Referer":         BASE_URL,
-        })
-        return s
+        self.delay   = delay
+        self.timeout = timeout
+        self.workers = workers
+        self.session = build_session(cf_cookie)
 
     def _get(self, url: str) -> Optional[BeautifulSoup]:
-        time.sleep(self.delay + random.uniform(0, 0.2))
+        time.sleep(self.delay + random.uniform(0, 0.3))
         try:
             resp = self.session.get(url, timeout=self.timeout)
             resp.raise_for_status()
@@ -301,281 +414,299 @@ class GreatRwandaJobsScraper:
             logger.warning(f"HTTP {status} -> {url}")
             return None
 
-    # -- Step 1: parse listing page cards -----------------------------
+    # -- Parse listing page --------------------------------------------
 
-    def _parse_listing(self, soup: BeautifulSoup) -> List[Dict]:
+    def _parse_cards(self, soup: BeautifulSoup, endpoint: str) -> List[Dict]:
         """
-        Walk every job-detail link on the page.
-        For each link, walk UP the DOM to find the enclosing card block,
-        then extract: company (img alt), category, posted, deadline, location,
-        employment type (badge text before the link).
+        Extract job stubs from a search results page.
+
+        The site renders job cards as <div> or <li> elements.
+        Each card text looks like:
+          "Supply of fuel at Bank of Kigali | Published on 11-02-2026 | Deadline 25-02-2026"
+        And has an <a href="/jobs/501302289-supply-of-fuel-...">
+
+        We try multiple selectors since the site may update its classes.
         """
         stubs = []
-        seen: Set[str] = set()
+        seen_urls: Set[str] = set()
+        is_tender = "tenders" in endpoint
 
-        for a in soup.select("a[href*='/jobs/job-detail/']"):
+        # Strategy 1: standard job card containers
+        cards = soup.select(
+            "div.job-listing, div.job-item, li.job-item, "
+            "div[class*='job-card'], article.job, div.listing-item, "
+            "div[class*='listing'], div.card"
+        )
+
+        # Strategy 2: fallback - find all links to /jobs/{id}-
+        if not cards:
+            for a in soup.select("a[href]"):
+                href = a.get("href","")
+                if not re.search(r"/jobs/\d+", href):
+                    continue
+                full_url = href if href.startswith("http") else BASE_URL + href
+                if full_url in seen_urls:
+                    continue
+                seen_urls.add(full_url)
+
+                # Walk up to find the containing block
+                container = a.parent
+                for _ in range(4):
+                    if container and len(container.get_text()) > 30:
+                        break
+                    container = container.parent if container else None
+
+                card_text = clean((container or a).get_text(" ")) or ""
+                dates = extract_dates(card_text)
+                tc = self._title_company(card_text)
+
+                stubs.append({
+                    "source_url":          full_url,
+                    "source_job_id":       extract_id(full_url),
+                    "title_raw":           tc["title"],
+                    "company_raw":         tc["company"],
+                    "raw_card_text":       card_text,
+                    "posted_date":         dates["posted_date"],
+                    "deadline":            dates["deadline"],
+                    "location_card":       "",
+                    "employment_type_raw": "Tender" if is_tender else "",
+                    "listing_endpoint":    endpoint,
+                })
+            return stubs
+
+        for card in cards:
+            a = card.select_one("a[href*='/jobs/']")
+            if not a: continue
             href = a.get("href","")
             full_url = href if href.startswith("http") else BASE_URL + href
-            if full_url in seen: continue
-            seen.add(full_url)
+            if full_url in seen_urls: continue
+            seen_urls.add(full_url)
 
-            title = clean(a.get_text()) or ""
-            # Skip navigation links (very short text or just whitespace)
-            if not title or len(title) < 3: continue
+            card_text = clean(card.get_text(" ")) or ""
+            dates = extract_dates(card_text)
+            tc = self._title_company(card_text)
 
-            # Walk up to find a block with enough context (~200+ chars)
-            block = a.parent
-            for _ in range(6):
-                if block is None: break
-                bt = block.get_text(" ")
-                if len(bt) > 120: break
-                block = block.parent
-
-            block_text = clean(block.get_text(" ")) if block else ""
-
-            # -- Company: from <img alt> nearest to this link ----------
-            company = ""
-            if block:
-                img = block.find("img", alt=True)
-                if img:
-                    alt = img.get("alt","").strip()
-                    # Skip generic/icon images
-                    if alt and len(alt) > 2 and "logo" not in alt.lower():
-                        company = alt
-                # Fallback: company link (Joomla JsJobs uses /jobs/company-detail/)
-                if not company:
-                    comp_a = block.find("a", href=re.compile(r"/jobs/company-detail/"))
-                    if comp_a:
-                        company = clean(comp_a.get("title","") or comp_a.get_text()) or ""
-
-            # -- Category ----------------------------------------------
-            category = ""
-            m = re.search(r"Job Category:\s*(.+?)(?:\n|Posted|Deadline)", block_text, re.IGNORECASE)
-            if m: category = clean(m.group(1)) or ""
-
-            # -- Employment type badge (appears before job link in card) -
-            emp_type = ""
-            m = re.search(r"(Full-time|Part-time|Contract|Internship|Volunteer|Consultancy)",
-                          block_text, re.IGNORECASE)
-            if m: emp_type = m.group(1)
-
-            # -- Posted date -------------------------------------------
-            posted = ""
-            m = re.search(r"Posted:\s*(.+?)(?:\n|Deadline)", block_text, re.IGNORECASE)
-            if m: posted = relative_to_date(clean(m.group(1)) or "")
-
-            # -- Deadline ---------------------------------------------
-            deadline = ""
-            m = re.search(r"Deadline of this Job:\s*(.+?)(?:\n|Duty Station|$)",
-                          block_text, re.IGNORECASE | re.DOTALL)
-            if m: deadline = parse_deadline(clean(m.group(1)) or "")
-
-            # -- Location (Duty Station) -------------------------------
-            location_raw = ""
-            m = re.search(r"Duty Station:\s*(.+?)(?:\n|$)", block_text, re.IGNORECASE)
-            if m: location_raw = clean(m.group(1)) or ""
+            loc_el = card.select_one(".location,.job-location,[class*='location']")
+            type_el = card.select_one(".badge,.tag,.job-type,.type,[class*='type']")
 
             stubs.append({
                 "source_url":          full_url,
-                "source_job_id":       extract_job_id(full_url),
-                "title":               title,
-                "company":             company,
-                "category":            category,
-                "employment_type_raw": emp_type,
-                "posted_date":         posted,
-                "deadline":            deadline,
-                "location_raw":        location_raw,
+                "source_job_id":       extract_id(full_url),
+                "title_raw":           tc["title"],
+                "company_raw":         tc["company"],
+                "raw_card_text":       card_text,
+                "posted_date":         dates["posted_date"],
+                "deadline":            dates["deadline"],
+                "location_card":       clean(loc_el.get_text()) if loc_el else "",
+                "employment_type_raw": clean(type_el.get_text()) if type_el else ("Tender" if is_tender else ""),
+                "listing_endpoint":    endpoint,
             })
 
         return stubs
 
-    def _get_total_jobs(self, soup: BeautifulSoup) -> int:
-        """Extract 'Total jobs: 36172' from listing page."""
-        m = re.search(r"Total jobs:\s*([\d,]+)", soup.get_text())
+    def _title_company(self, text: str) -> Dict[str, str]:
+        """Extract title and company from card text."""
+        core = re.sub(r"\|?\s*published\s+on.+", "", text, flags=re.IGNORECASE).strip()
+        core = re.sub(r"\|?\s*deadline.+", "", core, flags=re.IGNORECASE).strip()
+        m = re.match(r"^(.+?)\s+at\s+(.+)$", core, re.IGNORECASE)
         if m:
-            try: return int(m.group(1).replace(",",""))
-            except: pass
-        return 0
-
-    # -- Collect all stubs via pagination -----------------------------
+            return {"title": clean(m.group(1)) or "", "company": clean(m.group(2)) or ""}
+        return {"title": clean(core) or "", "company": ""}
 
     def collect_stubs(self) -> List[Dict]:
         all_stubs: List[Dict] = []
         seen: Set[str] = set()
 
-        # Fetch page 1 to get total count
-        soup = self._get(LIST_URL)
-        if not soup:
-            logger.error("Cannot reach listing page")
-            return []
+        for endpoint in SEARCH_ENDPOINTS:
+            logger.info(f"Endpoint: {endpoint}")
+            page = 1
 
-        total = self._get_total_jobs(soup)
-        logger.info(f"Site reports {total} total jobs")
+            while True:
+                url = f"{endpoint}?page={page}" if page > 1 else endpoint
+                soup = self._get(url)
+                if not soup:
+                    break
 
-        # Process page 1
-        page1_stubs = self._parse_listing(soup)
-        for s in page1_stubs:
-            if s["source_url"] not in seen:
-                seen.add(s["source_url"]); all_stubs.append(s)
+                stubs = self._parse_cards(soup, endpoint)
+                if not stubs:
+                    logger.info(f"  Page {page}: no cards found - stopping")
+                    break
 
-        # Calculate pages. If the site count parser found nothing AND page 1
-        # itself had no cards, the page layout has likely changed (or this
-        # request is being served a stripped-down/blocked response) — looping
-        # 2000 pages in that case just wastes minutes hitting empty responses
-        # and produces a misleading log ("scraping 2000 pages" after finding
-        # 0 jobs). Bail out loudly instead so the real cause gets noticed.
-        if not total and not page1_stubs:
-            logger.error(
-                "Could not determine total job count AND page 1 had 0 cards — "
-                "the site layout may have changed, or this request is being "
-                "blocked/served different markup. Not looping through pages "
-                "on a blind guess. Inspect the live HTML to update selectors."
-            )
-            return all_stubs  # empty
+                new = 0
+                for s in stubs:
+                    su = s.get("source_url","")
+                    if su and su not in seen:
+                        seen.add(su); all_stubs.append(s); new += 1
 
-        total_pages = (total // PAGE_SIZE) + 1 if total else 2000
-        if self.max_pages:
-            total_pages = min(total_pages, self.max_pages)
+                logger.info(f"  Page {page}: {new} new stubs (total {len(all_stubs)})")
 
-        logger.info(f"Scraping {total_pages} listing pages (~{total_pages * PAGE_SIZE} jobs)")
+                # Detect end of pagination
+                has_next = bool(
+                    soup.select_one("a[rel='next'],a.next,li.next a,.pagination .next")
+                    or soup.find("a", string=re.compile(r"^(next|>|>>)$", re.IGNORECASE))
+                )
+                if not has_next:
+                    break
+                page += 1
 
-        for page_num in range(1, total_pages):
-            start = page_num * PAGE_SIZE
-            url   = f"{LIST_URL}?start={start}"
-            soup  = self._get(url)
-
-            if not soup:
-                logger.info(f"  Stopped at offset {start} (no response)")
-                break
-
-            new_stubs = self._parse_listing(soup)
-            if not new_stubs:
-                logger.info(f"  No cards at offset {start} - end of listings")
-                break
-
-            new = 0
-            for s in new_stubs:
-                if s["source_url"] not in seen:
-                    seen.add(s["source_url"]); all_stubs.append(s); new += 1
-
-            if page_num % 50 == 0:
-                logger.info(f"  Page {page_num}/{total_pages} | offset {start} | total stubs: {len(all_stubs)}")
-
-            # If 0 new results, site probably wrapped around - stop
-            if new == 0 and page_num > 5:
-                logger.info("  No new results - stopping pagination")
-                break
-
-        logger.info(f"Total stubs collected: {len(all_stubs)}")
+        logger.info(f"Total stubs: {len(all_stubs)}")
         return all_stubs
 
-    # -- Step 2: fetch detail page -------------------------------------
+    # -- Parse detail page ---------------------------------------------
 
     def _parse_detail(self, url: str) -> Dict:
         detail: Dict[str, Any] = {}
         soup = self._get(url)
         if not soup: return detail
         try:
-            # -- Company Name Extraction -------------------------------
-            company = ""
+            # Get full page text for pattern matching
+            page_text = clean(soup.get_text(" ")) or ""
             
-            # Try multiple selectors for company name
-            company_selectors = [
-                ("a", {"href": re.compile(r"/jobs/company-detail/")}),
-                ("div", {"class": re.compile(r"company", re.I)}),
-                ("span", {"class": re.compile(r"company", re.I)}),
-            ]
-            
-            for tag, attrs in company_selectors:
-                comp_el = soup.find(tag, attrs)
-                if comp_el:
-                    company = clean(comp_el.get("title","") or comp_el.get_text())
-                    if company and len(company) > 2:
-                        break
-            
-            # Try regex pattern in page text
-            if not company:
-                page_text = soup.get_text()
-                match = re.search(r'Company(?:\s+Name)?:\s*([^\n]{3,100})', page_text, re.IGNORECASE)
-                if match:
-                    company = clean(match.group(1))
-            
-            # Try image alt text
-            if not company:
-                for img in soup.find_all("img", alt=True):
-                    alt = img.get("alt", "").strip()
-                    if alt and len(alt) > 2 and "logo" not in alt.lower() and "icon" not in alt.lower():
-                        company = alt
-                        break
-            
-            if company:
-                detail["company"] = company
-            
-            # Full description - Joomla JsJobs puts it in div.jsjobsview or similar
-            desc_el = soup.select_one(
-                "div.jsjobsview, div.job-description, div[class*='jobdesc'], "
-                "div.jsjobs_job_description, div#jsjobs_job_detail_block, "
-                "div.item-page, div.jd_inner, div[itemprop='description']"
-            )
-            if not desc_el:
-                # Fallback: largest text block in main content
-                desc_el = soup.select_one("div#content, div.jd_container, main, article")
-            detail["description"] = clean(desc_el.get_text(" ")) if desc_el else ""
+            # TITLE - from H1
+            h1 = soup.select_one("h1,.job-title,.listing-title")
+            if h1: 
+                detail["title_detail"] = clean(h1.get_text())
 
-            # Employment type from detail (more reliable than card badge)
-            etype_el = soup.select_one(
-                "span[class*='type'], div[class*='job-type'], "
-                "td:-soup-contains('Employment'), span:-soup-contains('Full-time'), "
-                "span:-soup-contains('Contract')"
+            # COMPANY - Extract from "at Company Name |" pattern in page text
+            # Pattern: "Job Title at Company Name | Published" 
+            # Example: "Driver at AHF Rwanda | Published on 10-03-2026"
+            company_match = re.search(
+                r'\bat\s+([A-Z][A-Za-z0-9\s&\.\(\)]+?)\s*\|',
+                page_text[:1000],  # Search in first 1000 chars
+                re.IGNORECASE
             )
-            if etype_el: detail["employment_type_detail"] = clean(etype_el.get_text())
+            if company_match:
+                company_text = company_match.group(1).strip()
+                # Clean up: remove "Published" if it leaked in
+                company_text = re.sub(r'\s+Published.*$', '', company_text, flags=re.IGNORECASE).strip()
+                if len(company_text) > 2 and len(company_text) < 100:
+                    detail["company_detail"] = company_text
+            
+            # Fallback: Try to get from page title
+            if not detail.get("company_detail"):
+                title_tag = soup.select_one("title")
+                if title_tag:
+                    title_text = clean(title_tag.get_text())
+                    # Pattern: "Job at Company | Published"
+                    title_match = re.search(r'\bat\s+([A-Za-z0-9\s&\.\(\)]+?)\s*\|', title_text)
+                    if title_match:
+                        detail["company_detail"] = clean(title_match.group(1))
 
-            # Application link or email
+            # LOCATION
+            loc = soup.select_one(".location,.job-location,[class*='location']")
+            if loc: detail["location_detail"] = clean(loc.get_text())
+
+            # EMPLOYMENT TYPE
+            etype = soup.select_one(".job-type,.employment-type,[class*='type'],[class*='employment']")
+            if etype: detail["employment_type_detail"] = clean(etype.get_text())
+
+            # DESCRIPTION - Get from paragraphs in main content
+            # First try to find a specific content container
+            main_content = soup.select_one("main, article, .content, .job-content")
+            
+            description_text = ""
+            if main_content:
+                # Remove navigation, sidebar, and other non-content elements
+                for unwanted in main_content.select("nav, .navbar, .header, .footer, .sidebar, .siteSearch, aside, .headerV3-wrapper"):
+                    unwanted.decompose()
+                
+                # Get all paragraphs
+                paragraphs = main_content.select("p")
+                if paragraphs:
+                    desc_text = " ".join([clean(p.get_text()) for p in paragraphs if len(p.get_text().strip()) > 10])
+                    # Filter out if it's just navigation text
+                    nav_indicators = ["Category Announcement Internship", "All Category Distance", "5 Miles 10 Miles"]
+                    is_nav = any(indicator in desc_text[:150] for indicator in nav_indicators)
+                    
+                    if len(desc_text) > 150 and not is_nav:
+                        description_text = desc_text
+                
+                # Fallback: get all text from main content (skip first 500 chars which might be nav)
+                if not description_text:
+                    all_text = clean(main_content.get_text(" "))
+                    if len(all_text) > 500:
+                        # Try to find where actual content starts (after "Posted" or "Deadline")
+                        content_start = 0
+                        for keyword in ["Posted", "Deadline", "Published on"]:
+                            idx = all_text.find(keyword)
+                            if idx > 0:
+                                # Find the next sentence after this keyword
+                                next_sentence = all_text.find(".", idx)
+                                if next_sentence > 0:
+                                    content_start = next_sentence + 1
+                                    break
+                        
+                        if content_start > 0 and content_start < len(all_text):
+                            description_text = all_text[content_start:].strip()
+            
+            # Final fallback: use page_text but skip navigation at the start
+            if not description_text and len(page_text) > 600:
+                # Find where "Posted" or similar appears, content usually starts after that
+                for marker in ["Posted", "Sign up for Job Alerts"]:
+                    idx = page_text.find(marker)
+                    if idx > 0 and idx < 800:
+                        # Content likely starts after the date info
+                        potential_content = page_text[idx+100:]
+                        if len(potential_content) > 200:
+                            description_text = potential_content
+                            break
+            
+            detail["description"] = description_text
+
+            # Dates from page text
+            detail.update(extract_dates(page_text))
+
+            # Apply link
             detail["application_link"] = ""
             for a in soup.select("a[href]"):
                 href = a.get("href",""); txt = (a.get_text() or "").lower()
-                if href.startswith("mailto:"): detail["application_link"] = href; break
-                if any(k in txt for k in ["apply now","apply here","submit application","click to apply"]) \
-                   and not href.startswith(BASE_URL):
+                if any(k in txt for k in ["apply","submit application"]) and not href.startswith(BASE_URL):
+                    detail["application_link"] = href; break
+                if href.startswith("mailto:"):
                     detail["application_link"] = href; break
 
         except Exception as e:
             logger.debug(f"Detail parse error [{url}]: {e}")
         return detail
 
-    # -- Step 3: build canonical record -------------------------------
+    # -- Build record --------------------------------------------------
 
     def _build(self, stub: Dict, detail: Dict) -> Dict:
-        title    = stub.get("title","")
-        company  = detail.get("company") or stub.get("company","")  # Prioritize detail page company
-        desc     = detail.get("description","") or ""
-        loc_raw  = stub.get("location_raw","")
-        cat      = stub.get("category","") or ""
-        emp_raw  = detail.get("employment_type_detail") or stub.get("employment_type_raw","")
-        src_url  = stub.get("source_url","")
+        card_text = stub.get("raw_card_text","") or ""
+        is_tender = "tenders" in stub.get("listing_endpoint","")
 
-        loc = infer_location(loc_raw or desc[:400])
-        sal = extract_salary(desc)
+        title = (detail.get("title_detail") or stub.get("title_raw",""))
+        title = re.sub(r"\s*\|?\s*published\s+on.+","", title, flags=re.IGNORECASE).strip()
 
-        # Sector: use job category first (site already labelled it), then infer
-        sector = ""
-        if "tender" in cat.lower():
-            sector = "Tender"
-        else:
-            sector = infer_field(desc, SECTOR_KEYWORDS, title=title) or ""
+        company = detail.get("company_detail") or stub.get("company_raw","")
+        if company:
+            title = re.sub(r"\s+at\s+" + re.escape(company), "", title, flags=re.IGNORECASE).strip()
 
+        posted = detail.get("posted_date") or stub.get("posted_date","")
+        deadline = detail.get("deadline") or stub.get("deadline","")
+        location_raw = detail.get("location_detail") or stub.get("location_card","")
+        employment_raw = detail.get("employment_type_detail") or stub.get("employment_type_raw","")
+        description = detail.get("description","") or ""
+        source_url = stub.get("source_url","")
+
+        loc = infer_location(location_raw or description[:400])
+        sal = extract_salary(description)
+
+        sector = infer_field(description, SECTOR_KEYWORDS, title=title) or (
+            "Tender" if is_tender else ""
+        )
         employment_type = (
-            clean(emp_raw)
-            or infer_field(desc, EMPLOYMENT_TYPE_KEYWORDS, title=title)
+            clean(employment_raw)
+            or infer_field(description, EMPLOYMENT_TYPE_KEYWORDS, title=title)
             or ""
         )
 
         record = {
-            "id":               make_hash(src_url),
+            "id":               make_hash(source_url),
             "title":            title,
             "company":          company,
-            "description":      desc,
-            "location_raw":     loc["location_raw"] or loc_raw,
+            "description":      description,
+            "location_raw":     loc["location_raw"] or location_raw,
             "district":         loc["district"],
             "country":          loc["country"],
             "is_remote":        loc["is_remote"],
@@ -584,23 +715,23 @@ class GreatRwandaJobsScraper:
             "eligibility_reason": "",
             "confidence_score": 0,
             "sector":           sector,
-            "job_level":        infer_field(desc, JOB_LEVEL_KEYWORDS, title=title) or "",
-            "experience_years": extract_exp(desc),
+            "job_level":        infer_field(description, JOB_LEVEL_KEYWORDS, title=title) or "",
+            "experience_years": extract_exp(description),
             "employment_type":  employment_type,
-            "education_level":  infer_field(desc, EDUCATION_KEYWORDS) or "",
+            "education_level":  infer_field(description, EDUCATION_KEYWORDS) or "",
             "salary_min":       sal["salary_min"],
             "salary_max":       sal["salary_max"],
             "currency":         sal["currency"],
             "salary_disclosed": sal["salary_disclosed"],
-            "posted_date":      stub.get("posted_date",""),
-            "deadline":         stub.get("deadline",""),
+            "posted_date":      posted,
+            "deadline":         deadline,
             "scraped_at":       now_iso(),
             "source":           self.SOURCE,
-            "source_url":       src_url,
+            "source_url":       source_url,
             "source_job_id":    stub.get("source_job_id",""),
             "is_active":        True,
             "last_checked":     now_iso(),
-            "duplicate_hash":   make_hash(src_url),
+            "duplicate_hash":   make_hash(source_url),
         }
         record.update(infer_eligibility(record))
         return record
@@ -609,79 +740,93 @@ class GreatRwandaJobsScraper:
 
     def scrape(self) -> pd.DataFrame:
         logger.info("=" * 60)
-        logger.info(f"greatrwandajobs.com scraper | max_pages={self.max_pages} workers={self.workers}")
+        logger.info(f"jobs.newtimes.co.rw | cloudscraper={HAS_CLOUDSCRAPER}")
         logger.info("=" * 60)
         t0 = time.time()
 
         stubs = self.collect_stubs()
         if not stubs:
-            logger.error("No stubs found.")
+            logger.error(
+                "No stubs found.\n"
+                "  -> Install cloudscraper:  pip install cloudscraper\n"
+                "  -> Or pass cf_cookie from browser DevTools (see docstring)"
+            )
             return pd.DataFrame()
 
         logger.info(f"Fetching {len(stubs)} detail pages ({self.workers} workers)...")
         details: Dict[str, Dict] = {}
 
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         with ThreadPoolExecutor(max_workers=self.workers) as ex:
             futures = {ex.submit(self._parse_detail, s["source_url"]): s["source_url"]
-                       for s in stubs}
+                       for s in stubs if s.get("source_url")}
             for i, f in enumerate(as_completed(futures), 1):
                 url = futures[f]
                 try: details[url] = f.result()
                 except Exception as e:
                     logger.warning(f"Detail error: {e}"); details[url] = {}
-                if i % 100 == 0:
+                if i % 50 == 0:
                     el = time.time()-t0; eta = (el/i)*(len(stubs)-i)
-                    logger.info(f"  {i}/{len(stubs)} ({i/len(stubs)*100:.0f}%) "
-                                f"elapsed={el:.0f}s ETA={eta:.0f}s")
+                    logger.info(f"  {i}/{len(stubs)} ({i/len(stubs)*100:.0f}%) elapsed={el:.0f}s ETA={eta:.0f}s")
 
-        records = [self._build(s, details.get(s["source_url"],{})) for s in stubs]
+        records = [self._build(s, details.get(s.get("source_url",""), {})) for s in stubs]
         seen: Set[str] = set()
         unique = [r for r in records if r["source_url"] not in seen and not seen.add(r["source_url"])]
 
         df = pd.DataFrame(unique)
         df = enforce(df)
-        logger.info(f"Done in {time.time()-t0:.1f}s - {len(df)} jobs")
+        logger.info(f"Done in {time.time()-t0:.1f}s - {len(df)} records")
         return df
 
-    def save_csv(self, df, path="greatrwandajobs_jobs.csv"):
+    def save_csv(self, df, path="newtimes_jobs.csv"):
         df.to_csv(path, index=False, encoding="utf-8-sig"); logger.info(f"Saved -> {path}")
 
-    def save_excel(self, df, path="greatrwandajobs_jobs.xlsx"):
+    def save_excel(self, df, path="newtimes_jobs.xlsx"):
         df.to_excel(path, index=False, engine="openpyxl"); logger.info(f"Saved -> {path}")
 
-    def save_json(self, df, path="greatrwandajobs_jobs.json"):
+    def save_json(self, df, path="newtimes_jobs.json"):
         df.to_json(path, orient="records", indent=2, force_ascii=False); logger.info(f"Saved -> {path}")
 
 
+# -- Selenium helper (last resort) -------------------------------------
+
+
+
+# -- Entry point -------------------------------------------------------
+
 def main():
-    scraper = GreatRwandaJobsScraper(
-        delay=0.4,
+    # -- Option 1: cloudscraper installed (recommended) ----------------
+    # pip install cloudscraper
+    # Then just run: python newtimes_scraper.py
+
+    # -- Option 2: manual cf_clearance cookie -------------------------
+    # 1. Open jobs.newtimes.co.rw in Chrome
+    # 2. DevTools -> Application -> Cookies -> copy cf_clearance value
+    # 3. Pass it below:
+    CF_COOKIE = ""  # paste cf_clearance value here if needed
+
+    scraper = NewTimesScraper(
+        delay=0.5,
         timeout=20,
-        workers=20,
-        max_pages=200,
+        workers=8,
+        cf_cookie=CF_COOKIE,
     )
 
     df = scraper.scrape()
     if df.empty: return
 
-    tenders = (df["sector"] == "Tender").sum()
-    jobs    = len(df) - tenders
+    jobs_df = df[df.get("listing_type", pd.Series(["job"]*len(df))) == "job"] if "listing_type" in df.columns else df
+    tenders_df = df[df.get("listing_type", pd.Series(["job"]*len(df))) == "tender"] if "listing_type" in df.columns else pd.DataFrame()
 
     print(f"\n{'='*60}")
-    print("  SCRAPE SUMMARY -- greatrwandajobs.com")
+    print("  SCRAPE SUMMARY -- jobs.newtimes.co.rw")
     print(f"{'='*60}")
     print(f"  Total records    : {len(df)}")
-    print(f"  Jobs             : {jobs}")
-    print(f"  Tenders          : {tenders}")
     print(f"  Rwanda eligible  : {df['rwanda_eligible'].sum()}")
     print(f"  With deadline    : {(df['deadline'] != '').sum()}")
-    print(f"  Salary disclosed : {df['salary_disclosed'].sum()}")
     print(f"\n  Top sectors:")
-    for s,c in df["sector"].value_counts().head(8).items():
+    for s,c in df["sector"].value_counts().head(6).items():
         print(f"    {str(s):<25} {c}")
-    print(f"\n  Top companies:")
-    for s,c in df["company"].value_counts().head(6).items():
-        print(f"    {str(s):<40} {c}")
     print(f"{'='*60}")
 
     scraper.save_csv(df)
