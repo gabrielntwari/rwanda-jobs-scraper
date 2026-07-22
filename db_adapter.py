@@ -96,11 +96,19 @@ class SupabaseAdapter:
             jobs_to_insert = []
             
             for _, row in df.iterrows():
-                # Check if job already exists
+                # Check if job already exists (by primary id, or by the
+                # separately-unique duplicate_hash — the jobs table enforces
+                # uniqueness on BOTH columns, and ON CONFLICT (id) alone
+                # doesn't protect against a duplicate_hash collision)
                 if self._job_exists(row['id']):
                     stats['skipped'] += 1
                     continue
-                
+
+                dup_hash = row.get('duplicate_hash', '')
+                if dup_hash and self._duplicate_hash_exists(dup_hash):
+                    stats['skipped'] += 1
+                    continue
+
                 # Prepare job data
                 job_data = self._prepare_job_data(row)
                 jobs_to_insert.append(job_data)
@@ -119,6 +127,16 @@ class SupabaseAdapter:
             
         except Exception as e:
             logger.error(f"Error saving jobs: {e}")
+            # CRITICAL: roll back first. Postgres marks the whole transaction
+            # "aborted" after any error; without a rollback, the very next
+            # command on this connection (including this status update) also
+            # fails with "current transaction is aborted, commands ignored
+            # until end of transaction block" — which used to mask the real
+            # error and crash the entire scraper run.
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
             self.complete_run(run_id, stats['found'], 0, 0, str(e))
             raise
         
@@ -127,6 +145,11 @@ class SupabaseAdapter:
     def _job_exists(self, job_id: str) -> bool:
         """Check if job ID already exists"""
         self.cursor.execute("SELECT 1 FROM jobs WHERE id = %s LIMIT 1;", (job_id,))
+        return self.cursor.fetchone() is not None
+
+    def _duplicate_hash_exists(self, dup_hash: str) -> bool:
+        """Check if this duplicate_hash already exists (separate UNIQUE constraint from id)"""
+        self.cursor.execute("SELECT 1 FROM jobs WHERE duplicate_hash = %s LIMIT 1;", (dup_hash,))
         return self.cursor.fetchone() is not None
     
     def _prepare_job_data(self, row: pd.Series) -> tuple:
@@ -297,7 +320,9 @@ class SupabaseAdapter:
             return False
     
     def _batch_insert_jobs(self, jobs_data: List[tuple]):
-        """Batch insert jobs for better performance"""
+        """Batch insert jobs for better performance. Falls back to inserting
+        one row at a time if the bulk batch hits an unexpected constraint
+        violation, so a single bad row can't silently drop the whole batch."""
         insert_sql = """
             INSERT INTO jobs (
                 id, title, company, description,
@@ -324,9 +349,24 @@ class SupabaseAdapter:
             )
             ON CONFLICT (id) DO NOTHING;
         """
-        
-        execute_batch(self.cursor, insert_sql, jobs_data, page_size=100)
-        self.conn.commit()
+
+        try:
+            execute_batch(self.cursor, insert_sql, jobs_data, page_size=100)
+            self.conn.commit()
+        except Exception as e:
+            logger.warning(f"Bulk batch insert failed ({e}); retrying row-by-row so good rows aren't lost")
+            self.conn.rollback()
+            inserted, skipped = 0, 0
+            for row in jobs_data:
+                try:
+                    self.cursor.execute(insert_sql, row)
+                    self.conn.commit()
+                    inserted += 1
+                except Exception as row_err:
+                    self.conn.rollback()
+                    skipped += 1
+                    logger.warning(f"  Skipped one row after insert error: {row_err}")
+            logger.info(f"Row-by-row fallback: {inserted} inserted, {skipped} skipped")
     
     def _update_source_stats(self, source: str, jobs_added: int):
         """Update job source statistics"""
