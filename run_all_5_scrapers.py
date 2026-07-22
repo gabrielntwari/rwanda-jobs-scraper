@@ -21,6 +21,8 @@ from datetime import datetime
 import psycopg2
 from psycopg2.extras import execute_batch
 import difflib
+import pandas as pd
+from schema import enforce
 
 # Add scrapers directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scrapers'))
@@ -34,6 +36,7 @@ from jobskazi_scraper import JobScraper as JobsKaziScraper
 from unjobs_scraper import JobScraper as UNJobsScraper
 from impactpool_scraper import JobScraper as ImpactPoolScraper
 from jobnziza_scraper import JobScraper as JobNzizaScraper
+from jobwebrwanda_scraper import JobWebRwandaScraper
 from db_adapter import save_scraper_output
 
 
@@ -286,6 +289,7 @@ def main():
         ("UNJobs",          UNJobsScraper),
         ("ImpactPool",      ImpactPoolScraper),
         ("JobNziza",        JobNzizaScraper),
+        ("JobWebRwanda",    JobWebRwandaScraper),
     ]
     
     results = {}
@@ -304,8 +308,18 @@ def main():
             
             # Create scraper and run
             scraper = ScraperClass()
-            df = scraper.scrape()
-            
+            result = scraper.scrape()
+
+            # Most scrapers return a DataFrame already; JobWebRwanda returns
+            # a list of dicts (its own schema, not run through schema.enforce()).
+            # Normalize either shape into a DataFrame before saving.
+            if isinstance(result, pd.DataFrame):
+                df = result
+            else:
+                df = pd.DataFrame(result)
+                if not df.empty:
+                    df = enforce(df)
+
             # Save to database
             if not df.empty:
                 stats = save_scraper_output(df, source=name.lower().replace(' ', ''))
