@@ -413,11 +413,26 @@ class GreatRwandaJobsScraper:
         logger.info(f"Site reports {total} total jobs")
 
         # Process page 1
-        for s in self._parse_listing(soup):
+        page1_stubs = self._parse_listing(soup)
+        for s in page1_stubs:
             if s["source_url"] not in seen:
                 seen.add(s["source_url"]); all_stubs.append(s)
 
-        # Calculate pages
+        # Calculate pages. If the site count parser found nothing AND page 1
+        # itself had no cards, the page layout has likely changed (or this
+        # request is being served a stripped-down/blocked response) — looping
+        # 2000 pages in that case just wastes minutes hitting empty responses
+        # and produces a misleading log ("scraping 2000 pages" after finding
+        # 0 jobs). Bail out loudly instead so the real cause gets noticed.
+        if not total and not page1_stubs:
+            logger.error(
+                "Could not determine total job count AND page 1 had 0 cards — "
+                "the site layout may have changed, or this request is being "
+                "blocked/served different markup. Not looping through pages "
+                "on a blind guess. Inspect the live HTML to update selectors."
+            )
+            return all_stubs  # empty
+
         total_pages = (total // PAGE_SIZE) + 1 if total else 2000
         if self.max_pages:
             total_pages = min(total_pages, self.max_pages)
