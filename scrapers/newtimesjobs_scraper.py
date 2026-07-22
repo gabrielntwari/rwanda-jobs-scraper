@@ -252,25 +252,90 @@ def extract_id(url):
 
 # -- Session builder ---------------------------------------------------
 
-def build_session(cf_cookie: str = ""):
+def get_cf_cookie_via_selenium(url=BASE_URL, wait_seconds=10) -> str:
+    """
+    Use a real (headless) Chrome browser to solve the Cloudflare JS challenge
+    and extract the resulting cf_clearance cookie, so the automated pipeline
+    doesn't need a human to paste one in from DevTools every time.
+
+    Uses --headless=new (not the old --headless flag): the legacy headless
+    mode is missing browser features Cloudflare's bot detection checks for,
+    while the new mode is close enough to a real browser to usually pass.
+    Same webdriver_manager fallback pattern already proven to work on this
+    project's GitHub Actions runner (see mifotra_scraper.py).
+    """
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        import time as t
+
+        opts = Options()
+        opts.add_argument("--headless=new")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--window-size=1400,2400")
+        opts.add_argument("--disable-blink-features=AutomationControlled")
+        opts.add_experimental_option("excludeSwitches", ["enable-automation"])
+        opts.add_argument(f"user-agent={BROWSER_HEADERS.get('User-Agent', '')}")
+
+        try:
+            from webdriver_manager.chrome import ChromeDriverManager
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=opts)
+        except Exception:
+            driver = webdriver.Chrome(options=opts)  # fall back to system chromedriver
+
+        driver.get(url)
+        t.sleep(wait_seconds)  # wait for the CF challenge to resolve
+
+        cf_cookie = ""
+        for cookie in driver.get_cookies():
+            if cookie["name"] == "cf_clearance":
+                cf_cookie = cookie["value"]
+                break
+
+        driver.quit()
+        if cf_cookie:
+            logger.info("Obtained fresh cf_clearance cookie via headless Chrome")
+        else:
+            logger.warning("Headless Chrome did not receive a cf_clearance cookie")
+        return cf_cookie
+    except Exception as e:
+        logger.warning(f"Selenium cf_clearance fetch failed: {e}")
+        return ""
+
+
+def build_session(cf_cookie: str = "", auto_fetch_cookie: bool = True):
     """
     Build a session that can bypass Cloudflare.
 
     Priority:
-      1. cloudscraper  (pip install cloudscraper)  <- recommended
-      2. requests with cf_clearance cookie          <- manual cookie from browser
-      3. plain requests                              <- will 403 on Cloudflare sites
+      1. cf_clearance cookie (auto-fetched via headless Chrome, or passed in
+         manually) applied on top of cloudscraper                <- most robust
+      2. cloudscraper alone  (pip install cloudscraper)
+      3. requests with cf_clearance cookie
+      4. plain requests                              <- will 403 on Cloudflare sites
 
-    To get cf_clearance manually:
-      - Open jobs.newtimes.co.rw in Chrome DevTools -> Application -> Cookies
-      - Copy the cf_clearance value and pass it as cf_cookie here
+    cloudscraper alone solves the older Cloudflare "I'm Under Attack Mode"
+    JS challenge, but this site has been observed returning 403 even with
+    cloudscraper active — a sign it now uses a Managed Challenge that needs
+    an actual browser to solve. auto_fetch_cookie=True (default) runs a
+    real headless Chrome once per scrape to get a fresh cf_clearance token.
     """
+    if not cf_cookie and auto_fetch_cookie:
+        cf_cookie = get_cf_cookie_via_selenium(BASE_URL)
+
     if HAS_CLOUDSCRAPER:
         logger.info("Using cloudscraper (Cloudflare bypass enabled)")
         scraper = cloudscraper.create_scraper(
             browser={"browser": "chrome", "platform": "windows", "mobile": False}
         )
         scraper.headers.update(BROWSER_HEADERS)
+        if cf_cookie:
+            logger.info("Layering a fresh cf_clearance cookie onto cloudscraper's session")
+            scraper.cookies.set("cf_clearance", cf_cookie, domain="jobs.newtimes.co.rw")
         return scraper
 
     # Fallback: requests with optional cf_clearance cookie
@@ -704,41 +769,6 @@ class NewTimesScraper:
 
 # -- Selenium helper (last resort) -------------------------------------
 
-def get_cf_cookie_via_selenium(url=BASE_URL) -> str:
-    """
-    Use Selenium to solve Cloudflare challenge and extract cf_clearance cookie.
-    Run this once, copy the value, then pass it as cf_cookie= to NewTimesScraper.
-
-    Requirements: pip install selenium  +  ChromeDriver in PATH
-    """
-    try:
-        from selenium import webdriver
-        from selenium.webdriver.chrome.options import Options
-        import time as t
-
-        opts = Options()
-        # Remove headless so Cloudflare doesn't detect it
-        # opts.add_argument("--headless")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-blink-features=AutomationControlled")
-        opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-
-        driver = webdriver.Chrome(options=opts)
-        driver.get(url)
-        t.sleep(8)  # wait for CF challenge to complete
-
-        cf_cookie = ""
-        for cookie in driver.get_cookies():
-            if cookie["name"] == "cf_clearance":
-                cf_cookie = cookie["value"]
-                break
-
-        driver.quit()
-        print(f"cf_clearance = {cf_cookie}")
-        return cf_cookie
-    except Exception as e:
-        print(f"Selenium failed: {e}")
-        return ""
 
 
 # -- Entry point -------------------------------------------------------
