@@ -22,11 +22,12 @@ import psycopg2
 from psycopg2.extras import execute_batch
 import difflib
 import pandas as pd
+
+# Add scrapers directory to path (must happen BEFORE importing schema/scrapers)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scrapers'))
+
 from schema import enforce
 
-# Add scrapers directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scrapers'))
-from schema import enforce
 from jobinrwanda_scraper import JobScraper
 from newtimesjobs_scraper import NewTimesScraper
 from greatrwandajobs_scraper import GreatRwandaJobsScraper
@@ -277,12 +278,12 @@ def main():
     if not database_url:
         print("\n[ERROR] DATABASE_URL environment variable not set!")
         print("Run: set DATABASE_URL=postgresql://...")
-        return
+        sys.exit(1)   # fail the GitHub Action visibly instead of reporting success
     
     scrapers = [
         ("JobInRwanda",     JobScraper),
         ("NewTimes",        NewTimesScraper),
-        ("GreatRwandaJobs", GreatRwandaJobsScraper),
+        ("GreatRwandaJobs", lambda: GreatRwandaJobsScraper(max_pages=40)),  # cap: site has ~36k jobs
         ("Mucuruzi",        MucuruziScraper),
         ("MIFOTRA",         MifotraScraper),
         ("JobsKazi",        JobsKaziScraper),
