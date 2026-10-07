@@ -34,7 +34,9 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 
 @lru_cache(maxsize=1)
 def _get_engine():
-    url = DATABASE_URL or ""
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is not set on this service (Render > Environment).")
+    url = DATABASE_URL
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
     if url.startswith("postgresql://"):
@@ -56,6 +58,20 @@ def get_jobs_data():
     with _cache_lock:
         if _data_cache["df"] is not None and (time.time() - _data_cache["ts"]) < CACHE_TTL:
             return _data_cache["df"]
+    try:
+        return _load_jobs_from_db()
+    except Exception as exc:
+        # Database unreachable (paused Supabase project, bad password, network):
+        # serve the last good snapshot if we have one instead of blanking the site.
+        with _cache_lock:
+            stale = _data_cache["df"]
+        if stale is not None:
+            print(f"[WARN] DB fetch failed, serving stale cache: {exc}")
+            return stale
+        raise
+
+
+def _load_jobs_from_db():
     engine = _get_engine()
 
     query = """
@@ -95,6 +111,13 @@ def get_jobs_data():
 
     return df
 
+
+# Display names for the source keys stored in jobs.source
+SOURCE_LABELS = {
+    'jobinrwanda': 'JobInRwanda', 'newtimes': 'New Times Jobs', 'greatrwandajobs': 'Great Rwanda Jobs',
+    'mucuruzi': 'Mucuruzi', 'mifotra': 'MIFOTRA', 'jobskazi': 'JobsKazi', 'unjobs': 'UN Jobs',
+    'impactpool': 'ImpactPool', 'jobnziza': 'JobNziza', 'jobwebrwanda': 'JobWebRwanda',
+}
 
 # ============================================================================
 # DESIGN TOKENS  (single source of truth for both CSS and Plotly)
@@ -889,7 +912,7 @@ def create_job_seeker_page():
             html.Div([
                 dcc.Dropdown(id='source-dropdown',
                     options=[{'label': 'All sources', 'value': 'all'}] +
-                            [{'label': s, 'value': s} for s in ['jobinrwanda', 'impactpool', 'musuratool', 'greatrwandajobs']],
+                            [{'label': SOURCE_LABELS.get(s, s), 'value': s} for s in sorted(jobs_by_source.index)],
                     value='all', clearable=False),
             ]),
             html.Div([
@@ -1405,12 +1428,26 @@ def create_historical_page():
 @callback(Output('page-content', 'children'),
           Input('url', 'pathname'))
 def display_page(pathname):
-    if pathname == '/insights':
-        return create_market_insights_page()
-    elif pathname == '/historical':
-        return create_historical_page()
-    else:
-        return create_job_seeker_page()
+    try:
+        if pathname == '/insights':
+            return create_market_insights_page()
+        elif pathname == '/historical':
+            return create_historical_page()
+        else:
+            return create_job_seeker_page()
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()   # full trace goes to the Render logs
+        return html.Div([
+            html.Div([
+                html.H2("We couldn't load the jobs right now"),
+                html.P("The job database is temporarily unreachable. "
+                       "Please refresh in a minute - the data is not lost."),
+                html.Pre(f"{type(exc).__name__}: {str(exc)[:300]}",
+                         style={"fontSize": "12px", "color": MUTED, "whiteSpace": "pre-wrap"}),
+            ], className="empty-state", style={"maxWidth": "640px", "margin": "60px auto", "padding": "0 16px"}),
+            page_footer(),
+        ], className="page-wrap")
 
 
 # ============================================================================
