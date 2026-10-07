@@ -379,6 +379,29 @@ def infer_rwanda_eligibility(job: Dict) -> Dict:
             "confidence_score": 5}
 
 
+_DATE_RX = r"(\d{1,2}\s*[/\-.]\s*(?:\d{1,2}|[A-Za-z]{3,9})\s*[/\-.]\s*\d{4})"
+
+
+def find_labelled_date(text: str, label: str) -> Optional[str]:
+    """Date following a label such as 'Deadline', tolerating emoji, spaces,
+    a missing colon, and up to ~25 characters between label and date."""
+    if not text:
+        return None
+    m = re.search(label + r"\W{0,12}?[^\d]{0,25}?" + _DATE_RX, text, re.IGNORECASE)
+    return re.sub(r"\s+", "", m.group(1)) if m else None
+
+
+def deadline_from_remaining(text: str) -> str:
+    """Fallback: '7d 15h remaining' -> 'on DD-MM-YYYY' relative to today."""
+    from datetime import timedelta
+    m = re.search(r"(\d+)\s*d\s*(\d+)?\s*h?\s*remaining", text or "", re.IGNORECASE)
+    if not m:
+        return ""
+    dt = datetime.now() + timedelta(days=int(m.group(1)))
+    return f"on {dt.strftime('%d-%m-%Y')}"
+
+
+
 def parse_jobnziza_date(raw: str) -> str:
     """
     Convert jobnziza date format to dashboard format.
@@ -539,7 +562,14 @@ class JobScraper:
                     txt = container.get_text(" ", strip=True)
                     if re.search(r"Deadline|Published", txt, re.I):
                         break
-                    container = container.parent
+                    parent = container.parent
+                    # never widen to a wrapper holding several jobs (would mix cards)
+                    hrefs = {x.get("href", "").split("#")[0]
+                             for x in parent.find_all("a", href=True)
+                             if "read_job_post" in x.get("href", "")}
+                    if len(hrefs) > 1:
+                        break
+                    container = parent
                 card_text = container.get_text(" ", strip=True) if container else ""
 
                 # Extract structured fields using bold-label patterns
@@ -548,8 +578,8 @@ class JobScraper:
                     r"Location[:\s]+([A-Za-z][^*\n]{1,60}?)(?:\s*\*\*|\s*Category|\s*Positions|\s*Published|\s*Deadline|$)",
                     card_text
                 )
-                published = extract_regex(r"Published[:\s]+(\d{1,2}[/\- ][A-Za-z0-9]{1,9}[/\- ]\d{4})", card_text)
-                deadline  = extract_regex(r"Deadline[:\s]+(\d{1,2}[/\- ][A-Za-z0-9]{1,9}[/\- ]\d{4})", card_text)
+                published = find_labelled_date(card_text, "Published")
+                deadline  = find_labelled_date(card_text, "Deadline")
 
                 # Company fallback from img alt tag
                 if not company:
@@ -572,7 +602,7 @@ class JobScraper:
                     "source_job_id":  source_job_id,
                     "location_raw":   clean(location) or "Rwanda",
                     "posted_date":    parse_jobnziza_date(published or ""),
-                    "deadline":       parse_jobnziza_date(deadline or ""),
+                    "deadline":       parse_jobnziza_date(deadline or "") or deadline_from_remaining(card_text),
                     "employment_type": CATEGORY_TO_EMPLOYMENT_TYPE.get(category, "Contract"),
                 })
 
@@ -637,12 +667,8 @@ class JobScraper:
             details["experience_raw"] = extract_regex(
                 r"Experience[:\s]+(.+?)(?:\n|[PIN]|[DOC]|[NOTE]|[EDU]|[VIEW]|[PEOPLE]|[DATE]|[NEW]|$)", page_text
             )
-            deadline_raw = extract_regex(
-                r"Deadline[:\s]+(\d{1,2}[/\- ][A-Za-z0-9]{1,9}[/\- ]\d{4})", page_text
-            )
-            posted_raw = extract_regex(
-                r"Posted[:\s]+(\d{2}/\d{2}/\d{4})", page_text
-            )
+            deadline_raw = find_labelled_date(page_text, "Deadline")
+            posted_raw = find_labelled_date(page_text, "Posted|Published")
             if deadline_raw:
                 details["deadline"]     = parse_jobnziza_date(deadline_raw)
             if posted_raw:
