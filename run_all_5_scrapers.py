@@ -25,8 +25,8 @@ import pandas as pd
 from schema import enforce
 
 # Add scrapers directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scrapers'))
-
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scrapers'))
+from schema import enforce
 from jobinrwanda_scraper import JobScraper
 from newtimesjobs_scraper import NewTimesScraper
 from greatrwandajobs_scraper import GreatRwandaJobsScraper
