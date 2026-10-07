@@ -48,7 +48,7 @@ from typing import List, Dict, Optional, Any
 from urllib.parse import urljoin, urlparse
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 import pandas as pd
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
@@ -386,12 +386,17 @@ def parse_jobnziza_date(raw: str) -> str:
     """
     if not raw:
         return ""
-    date_part = raw.strip().split()[0]  # strip time component
-    try:
-        dt = datetime.strptime(date_part, "%d/%m/%Y")
-        return f"on {dt.strftime('%d-%m-%Y')}"
-    except ValueError:
-        return raw.strip()
+    raw = raw.strip()
+    m = re.match(r"(\d{1,2})[/\- ]([A-Za-z0-9]{1,9})[/\- ](\d{4})", raw)
+    if not m:
+        return raw
+    candidate = f"{m.group(1)}/{m.group(2)}/{m.group(3)}"
+    for fmt in ("%d/%m/%Y", "%d/%b/%Y", "%d/%B/%Y"):
+        try:
+            return f"on {datetime.strptime(candidate, fmt).strftime('%d-%m-%Y')}"
+        except ValueError:
+            continue
+    return raw
 
 
 # ----------------------------------------------
@@ -498,12 +503,19 @@ class JobScraper:
         """
         stubs = []
 
-        # Find all job card links
-        card_links = [
-            a for a in soup.find_all("a", href=True)
-            if "read_job_post" in a.get("href", "")
-               and a.find("h5")  # must have a title heading
-        ]
+        # Find all job card links. The site has used both
+        # /read_job_post.php?slug=SLUG and /read_job_post/SLUG, so accept both.
+        # A card can contain several links to the same job (logo + title), so
+        # keep the one that carries the most text and drop duplicates.
+        best: Dict[str, Tag] = {}
+        for a in soup.find_all("a", href=True):
+            href = a.get("href", "")
+            if "read_job_post" not in href:
+                continue
+            key = href.split("#")[0]
+            if key not in best or len(a.get_text(strip=True)) > len(best[key].get_text(strip=True)):
+                best[key] = a
+        card_links = list(best.values())
 
         for a in card_links:
             try:
@@ -512,16 +524,23 @@ class JobScraper:
                 source_job_id = extract_regex(r"slug=([^&]+)", href) or \
                                 urlparse(source_url).path.rstrip("/").split("/")[-1]
 
-                # Title from h5, company from h6 inside the link
-                h5 = a.find("h5")
+                # Title: heading inside the link if present, else the link text
+                heading = a.find(["h5", "h4", "h3", "h2"]) or a
                 h6 = a.find("h6")
-                title   = clean(h5.get_text()) if h5 else ""
+                title   = clean(heading.get_text(" ", strip=True)) if heading else ""
                 company = clean(h6.get_text()) if h6 else ""
 
-                # Card metadata sits in the parent container as siblings
-                # Walk up to find the card wrapper
+                # Card wrapper: climb until the text mentions a deadline/published
+                # label (bounded, so we never swallow the whole page)
                 container = a.parent
-                card_text  = container.get_text(" ", strip=True) if container else ""
+                for _ in range(5):
+                    if container is None or container.parent is None:
+                        break
+                    txt = container.get_text(" ", strip=True)
+                    if re.search(r"Deadline|Published", txt, re.I):
+                        break
+                    container = container.parent
+                card_text = container.get_text(" ", strip=True) if container else ""
 
                 # Extract structured fields using bold-label patterns
                 # Location stops at first occurrence of another field label
@@ -529,8 +548,8 @@ class JobScraper:
                     r"Location[:\s]+([A-Za-z][^*\n]{1,60}?)(?:\s*\*\*|\s*Category|\s*Positions|\s*Published|\s*Deadline|$)",
                     card_text
                 )
-                published = extract_regex(r"Published[:\s]+(\d{2}/\d{2}/\d{4})", card_text)
-                deadline  = extract_regex(r"Deadline[:\s]+(\d{2}/\d{2}/\d{4})", card_text)
+                published = extract_regex(r"Published[:\s]+(\d{1,2}[/\- ][A-Za-z0-9]{1,9}[/\- ]\d{4})", card_text)
+                deadline  = extract_regex(r"Deadline[:\s]+(\d{1,2}[/\- ][A-Za-z0-9]{1,9}[/\- ]\d{4})", card_text)
 
                 # Company fallback from img alt tag
                 if not company:
@@ -619,7 +638,7 @@ class JobScraper:
                 r"Experience[:\s]+(.+?)(?:\n|[PIN]|[DOC]|[NOTE]|[EDU]|[VIEW]|[PEOPLE]|[DATE]|[NEW]|$)", page_text
             )
             deadline_raw = extract_regex(
-                r"Deadline[:\s]+(\d{2}/\d{2}/\d{4})", page_text
+                r"Deadline[:\s]+(\d{1,2}[/\- ][A-Za-z0-9]{1,9}[/\- ]\d{4})", page_text
             )
             posted_raw = extract_regex(
                 r"Posted[:\s]+(\d{2}/\d{2}/\d{4})", page_text
