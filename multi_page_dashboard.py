@@ -34,8 +34,13 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 
 @lru_cache(maxsize=1)
 def _get_engine():
+    url = DATABASE_URL or ""
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return create_engine(
-        DATABASE_URL,
+        url,
         pool_pre_ping=True,
         pool_size=1,        # free tier: 1 connection is enough
         max_overflow=0,     # no extra connections
