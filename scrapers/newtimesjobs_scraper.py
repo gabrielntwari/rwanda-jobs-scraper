@@ -138,7 +138,7 @@ BROWSER_HEADERS = {
     ),
     "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Encoding": "gzip, deflate",
     "Connection":      "keep-alive",
     "Upgrade-Insecure-Requests": "1",
     "Sec-Fetch-Dest":  "document",
@@ -268,6 +268,7 @@ def get_cf_cookie_via_selenium(url=BASE_URL, wait_seconds=10) -> str:
         from selenium import webdriver
         from selenium.webdriver.chrome.options import Options
         from selenium.webdriver.chrome.service import Service
+        from selenium.common.exceptions import TimeoutException
         import time as t
 
         opts = Options()
@@ -287,20 +288,40 @@ def get_cf_cookie_via_selenium(url=BASE_URL, wait_seconds=10) -> str:
         except Exception:
             driver = webdriver.Chrome(options=opts)  # fall back to system chromedriver
 
-        driver.get(url)
-        t.sleep(wait_seconds)  # wait for the CF challenge to resolve
+        # HARD CAP on page load: a site that actively detects and blocks
+        # headless browsers (like this one) may never fire "page load
+        # complete" for a challenge page — without this, driver.get() can
+        # hang indefinitely and stall the whole pipeline. 20s is generous
+        # for a page that should normally resolve in a few seconds.
+        driver.set_page_load_timeout(20)
 
         cf_cookie = ""
-        for cookie in driver.get_cookies():
-            if cookie["name"] == "cf_clearance":
-                cf_cookie = cookie["value"]
-                break
+        try:
+            driver.get(url)
+            t.sleep(wait_seconds)  # let the CF challenge finish resolving
+        except TimeoutException:
+            logger.warning(f"Page load exceeded 20s timeout — challenge likely stuck; "
+                            f"grabbing whatever cookies were set so far")
+            try:
+                driver.execute_script("window.stop();")
+            except Exception:
+                pass
+        finally:
+            try:
+                for cookie in driver.get_cookies():
+                    if cookie["name"] == "cf_clearance":
+                        cf_cookie = cookie["value"]
+                        break
+            except Exception:
+                pass
+            driver.quit()
 
-        driver.quit()
         if cf_cookie:
             logger.info("Obtained fresh cf_clearance cookie via headless Chrome")
         else:
-            logger.warning("Headless Chrome did not receive a cf_clearance cookie")
+            logger.warning("Headless Chrome did not receive a cf_clearance cookie "
+                            "(site likely detected the automated browser and blocked "
+                            "the challenge from resolving)")
         return cf_cookie
     except Exception as e:
         logger.warning(f"Selenium cf_clearance fetch failed: {e}")
